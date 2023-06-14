@@ -83,7 +83,7 @@ mod hidden {
         register_counter_vec!(
             "epm_submissions",
             "EPM submissions per round",
-            &["round", "address", "score"]
+            &["chain", "round", "address", "score"]
         )
         .unwrap()
     });
@@ -92,28 +92,28 @@ mod hidden {
         register_counter_vec!(
             "epm_election_winner",
             "EPM election winner per round",
-            &["round", "address", "score"]
+            &["chain", "round", "address", "score"]
         )
         .unwrap()
     });
 
-    pub fn submission(round: u32, addr: Option<Hash>, score: ElectionScore) {
+    pub fn submission(chain: &str, round: u32, addr: Option<Hash>, score: ElectionScore) {
         let round = round.to_string();
         let addr = serialize_addr(addr);
         let score = serialize_score(score);
 
         SUBMISSIONS_PER_ROUND
-            .with_label_values(&[&round, &addr, &score])
+            .with_label_values(&[chain, &round, &addr, &score])
             .inc();
     }
 
-    pub fn election_winner(round: u32, addr: Option<Hash>, score: ElectionScore) {
+    pub fn election_winner(chain: &str, round: u32, addr: Option<Hash>, score: ElectionScore) {
         let round = round.to_string();
         let addr = serialize_addr(addr);
         let score = serialize_score(score);
 
         ELECTION_WINNER
-            .with_label_values(&[&round, &addr, &score])
+            .with_label_values(&[chain, &round, &addr, &score])
             .inc();
     }
 

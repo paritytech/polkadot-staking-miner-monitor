@@ -30,6 +30,3 @@ hyper = { version = "0.14.25", features = ["server", "http1", "http2", "tcp"] }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate" }
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate" }
 sp-npos-elections = { git = "https://github.com/paritytech/substrate" }
-
-# staking-miner
-staking-miner = { git = "https://github.com/paritytech/staking-miner-v2" }

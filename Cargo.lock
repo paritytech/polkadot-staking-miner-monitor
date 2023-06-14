@@ -1634,7 +1634,6 @@ dependencies = [
  "jsonrpsee-core",
  "jsonrpsee-http-client",
  "jsonrpsee-types",
- "jsonrpsee-ws-client",
 ]
 
 [[package]]
@@ -1712,18 +1711,6 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tracing",
-]
-
-[[package]]
-name = "jsonrpsee-ws-client"
-version = "0.16.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b83daeecfc6517cfe210df24e570fb06213533dfb990318fae781f4c7119dd9"
-dependencies = [
- "http",
- "jsonrpsee-client-transport",
- "jsonrpsee-core",
- "jsonrpsee-types",
 ]
 
 [[package]]
@@ -3890,35 +3877,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
-name = "staking-miner"
-version = "1.0.0"
-source = "git+https://github.com/paritytech/staking-miner-v2#135a633766e7895f73d22db81c26ca72e89e6994"
-dependencies = [
- "clap",
- "frame-election-provider-support",
- "frame-support",
- "futures",
- "hyper",
- "jsonrpsee",
- "log",
- "once_cell",
- "pallet-election-provider-multi-phase",
- "parity-scale-codec",
- "pin-project-lite",
- "prometheus",
- "scale-info",
- "scale-value",
- "serde",
- "serde_json",
- "sp-npos-elections",
- "sp-runtime 24.0.0 (git+https://github.com/paritytech/substrate)",
- "subxt",
- "thiserror",
- "tokio",
- "tracing-subscriber 0.3.17",
-]
-
-[[package]]
 name = "staking-miner-monitor"
 version = "0.1.0"
 dependencies = [
@@ -3937,7 +3895,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-npos-elections",
- "staking-miner",
  "subxt",
  "tokio",
  "tracing",
