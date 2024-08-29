@@ -26,6 +26,7 @@ pub type Header = subxt::config::substrate::SubstrateHeader<
 >;
 
 pub type EpmPhase = subxt::utils::Static<pallet_election_provider_multi_phase::Phase<u32>>;
+use subxt::backend::rpc::reconnecting_rpc_client::ExponentialBackoff;
 pub use subxt::config::Header as HeaderT;
 
 pub const EPM_PALLET_NAME: &str = "ElectionProviderMultiPhase";
@@ -66,11 +67,15 @@ impl Client {
         tracing::debug!("attempting to connect to {:?}", uri);
 
         let rpc = loop {
-            match jsonrpsee::ws_client::WsClientBuilder::default()
+            match subxt::backend::rpc::reconnecting_rpc_client::Client::builder()
                 .max_request_size(u32::MAX)
                 .max_response_size(u32::MAX)
+                .retry_policy(
+                    ExponentialBackoff::from_millis(100)
+                        .max_delay(std::time::Duration::from_secs(10)),
+                )
                 .request_timeout(std::time::Duration::from_secs(600))
-                .build(&uri)
+                .build(uri.to_string())
                 .await
             {
                 Ok(rpc) => break subxt::backend::rpc::RpcClient::new(rpc),

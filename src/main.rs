@@ -74,6 +74,8 @@ async fn main() -> anyhow::Result<()> {
 
         let curr_phase = get_phase(&client, block_ref.hash()).await?.0;
 
+        tracing::info!("block={}, phase={:?}", block.number(), curr_phase);
+
         if !curr_phase.is_signed() && !curr_phase.is_unsigned_open() {
             state.clear();
             continue;
