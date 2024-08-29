@@ -2,8 +2,6 @@
 // This file is dual-licensed as Apache-2.0 or GPL-3.0.
 // see LICENSE for license details.
 
-use std::collections::BTreeSet;
-
 #[subxt::subxt(
     runtime_metadata_path = "artifacts/metadata.scale",
     derive_for_all_types = "Clone, Debug, Eq, PartialEq",
@@ -36,20 +34,17 @@ pub const EPM_PALLET_NAME: &str = "ElectionProviderMultiPhase";
 #[derive(Debug)]
 pub struct SubmissionsInRound {
     pub submissions: Vec<Submission>,
-    pub visited_blocks: BTreeSet<u32>,
 }
 
 impl SubmissionsInRound {
     pub fn new() -> Self {
         Self {
             submissions: Vec::new(),
-            visited_blocks: BTreeSet::new(),
         }
     }
 
     pub fn clear(&mut self) {
         self.submissions.clear();
-        self.visited_blocks.clear();
     }
 
     pub fn add_submission(&mut self, submission: Submission) {
