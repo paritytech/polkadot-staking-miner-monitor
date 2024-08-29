@@ -1,23 +1,16 @@
+// Copyright 2024 Parity Technologies (UK) Ltd.
+// This file is dual-licensed as Apache-2.0 or GPL-3.0.
+// see LICENSE for license details.
+
 mod helpers;
 mod prometheus;
 mod types;
 
-#[subxt::subxt(
-    runtime_metadata_path = "artifacts/metadata.scale",
-    derive_for_all_types = "Clone, Debug, Eq, PartialEq",
-    substitute_type(
-        path = "sp_npos_elections::ElectionScore",
-        with = "::subxt::utils::Static<::sp_npos_elections::ElectionScore>"
-    )
-)]
-pub mod runtime {}
+use std::str::FromStr;
 
 use clap::Parser;
 use helpers::*;
-use subxt::config::Header as _;
 use types::*;
-
-use runtime::runtime_types::pallet_election_provider_multi_phase::Phase as EpmPhase;
 
 #[derive(Debug, Clone, Parser)]
 struct Opt {
@@ -37,97 +30,84 @@ async fn main() -> anyhow::Result<()> {
     let url = url.ok_or_else(|| anyhow::anyhow!("--url must be set"))?;
     let _prometheus_handle =
         prometheus::run(prometheus_port).map_err(|e| anyhow::anyhow!("{e}"))?;
-    let _ = tracing_subscriber::fmt().try_init();
+    tracing_subscriber::fmt()
+        .try_init()
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    let api = loop {
-        match SubxtClient::from_url(&url).await {
-            Ok(api) => break api,
-            Err(e) => {
-                tracing::warn!("Could not connect to {url} {}, trying to re-connect", e);
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            }
-        }
+    let client = Client::new(&url).await?;
+    let runtime_version = client.rpc().state_get_runtime_version(None).await?;
+    let spec_name = match runtime_version.other.get("specName") {
+        Some(serde_json::Value::String(n)) => n.clone(),
+        Some(_) => return Err(anyhow::anyhow!("specName is not a string")),
+        None => return Err(anyhow::anyhow!("specName not found")),
     };
 
-    let chain_name = get_chain_name(&api);
-    let mut blocks = api.rpc().subscribe_finalized_block_headers().await?;
+    let chain_name = Chain::from_str(&spec_name).unwrap();
 
-    let sign_phase_len = ThreadSafeCounter::new(
-        api.constants().at(&runtime::constants()
-            .election_provider_multi_phase()
-            .signed_phase())?,
-    );
+    let mut blocks = client
+        .chain_api()
+        .backend()
+        .stream_finalized_block_headers()
+        .await?;
 
-    let unsign_phase_len = ThreadSafeCounter::new(
-        api.constants().at(&runtime::constants()
-            .election_provider_multi_phase()
-            .unsigned_phase())?,
-    );
+    let mut state = SubmissionsInRound::new();
 
-    let mut state = SubmissionsInRound::new(sign_phase_len.clone(), unsign_phase_len.clone());
-
-    let upgrade_task = tokio::spawn(runtime_upgrade_task(
-        api.clone(),
-        sign_phase_len,
-        unsign_phase_len,
-    ));
+    let upgrade_task = tokio::spawn(runtime_upgrade_task(client.chain_api().clone()));
 
     loop {
         if upgrade_task.is_finished() {
             panic!("Upgrade task failed; terminate app");
         }
 
-        let block = match blocks.next().await {
+        let (block, block_ref) = match blocks.next().await {
             Some(Err(e)) => return Err(e.into()),
             Some(Ok(b)) => b,
             None => {
-                blocks = api.rpc().subscribe_finalized_block_headers().await?;
+                blocks = client
+                    .chain_api()
+                    .backend()
+                    .stream_finalized_block_headers()
+                    .await?;
                 continue;
             }
         };
 
-        match get_phase(&api, block.hash()).await? {
-            EpmPhase::Off | EpmPhase::Emergency => {
-                continue;
-            }
-            EpmPhase::Signed | EpmPhase::Unsigned(_) => {
-                state.visited_blocks.insert(block.number());
-            }
-        }
+        let curr_phase = get_phase(&client, block_ref.hash()).await?.0;
 
-        if let Some(winner) = read_block(&api, &block, &mut state, &chain_name).await? {
-            tracing::info!("state: {:?}", state);
-
-            let num_blocks = (state.unsign_phase_len.read() + state.sign_phase_len.read()) as usize;
-
-            if state.visited_blocks.len() != num_blocks {
-                let n = (num_blocks - state.visited_blocks.len()) as u32;
-                let start_idx = state
-                    .visited_blocks
-                    .first()
-                    .copied()
-                    .map_or(block.number() - num_blocks as u32, |f| f - n);
-
-                for block_num in start_idx..start_idx + n {
-                    let old_block = get_header(&api, block_num).await?;
-                    read_block(&api, &old_block, &mut state, &chain_name).await?;
-                }
-            }
-
-            tracing::info!("state: {:?}", state);
-            assert_eq!(state.visited_blocks.len(), num_blocks);
-
-            let (score, addr, r) = state
-                .submissions
-                .iter()
-                .max_by(|a, b| a.0.cmp(&b.0))
-                .cloned()
-                .expect("A winner must exist; qed");
-
-            assert_eq!(score, winner.score.0);
-            prometheus::election_winner(&chain_name, r, addr, score);
-
+        if !curr_phase.is_signed() && !curr_phase.is_unsigned_open() {
             state.clear();
+            continue;
         }
+
+        let winner = match read_block(&client, &block, &mut state, chain_name).await? {
+            ReadBlock::PhaseClosed => unreachable!("Phase already checked; qed"),
+            ReadBlock::ElectionFinalized(winner) => winner,
+            ReadBlock::Done => continue,
+        };
+
+        // Read the previous blocks in the round.
+        let mut prev_block = block.number().checked_sub(1);
+        while let Some(b) = prev_block {
+            let old_block = get_block(&client, b).await?;
+            match read_block(&client, &old_block, &mut state, chain_name).await? {
+                ReadBlock::PhaseClosed | ReadBlock::ElectionFinalized(_) => break,
+                ReadBlock::Done => {}
+            }
+            prev_block = b.checked_sub(1);
+        }
+
+        tracing::info!("state: {:?}", state);
+
+        let (score, addr, r) = state
+            .submissions
+            .iter()
+            .max_by(|a, b| a.0.cmp(&b.0))
+            .cloned()
+            .expect("A winner must exist; qed");
+
+        assert_eq!(score, winner.score.0);
+        prometheus::election_winner(&chain_name.to_string(), r, addr, score);
+
+        state.clear();
     }
 }
