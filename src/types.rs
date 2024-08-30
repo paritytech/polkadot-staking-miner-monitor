@@ -26,26 +26,72 @@ pub type Header = subxt::config::substrate::SubstrateHeader<
 >;
 
 pub type EpmPhase = subxt::utils::Static<pallet_election_provider_multi_phase::Phase<u32>>;
-use subxt::backend::rpc::reconnecting_rpc_client::ExponentialBackoff;
 pub use subxt::config::Header as HeaderT;
 
+use std::str::FromStr;
+use subxt::backend::rpc::reconnecting_rpc_client::ExponentialBackoff;
+
 pub const EPM_PALLET_NAME: &str = "ElectionProviderMultiPhase";
+
+#[derive(Debug)]
+struct ActiveRound {
+    round: u32,
+    start_block: u64,
+    last_block: u64,
+}
 
 /// Represents the submissions in a round and should be cleared after each round.
 #[derive(Debug)]
 pub struct SubmissionsInRound {
     pub submissions: Vec<Submission>,
+    inner: Option<ActiveRound>,
 }
 
 impl SubmissionsInRound {
     pub fn new() -> Self {
         Self {
             submissions: Vec::new(),
+            inner: None,
         }
+    }
+
+    pub fn new_block(&mut self, block: u64, round: u32) {
+        if self.inner.is_none() {
+            self.inner = Some(ActiveRound {
+                round,
+                start_block: block,
+                last_block: block,
+            });
+        }
+
+        let state = self.inner.as_mut().unwrap();
+
+        // ElectionFinalized is emitted in the next round
+        // so we need to wait for it to be emitted before
+        // clearing the state and starting a new round.
+        //
+        // However
+        if round == state.round {
+            state.last_block = block;
+        }
+    }
+
+    pub fn first_block(&self) -> Option<u64> {
+        self.inner.as_ref().map(|s| s.start_block)
+    }
+
+    #[allow(dead_code)]
+    pub fn last_block(&self) -> Option<u64> {
+        self.inner.as_ref().map(|s| s.last_block)
+    }
+
+    pub fn round(&self) -> Option<u32> {
+        self.inner.as_ref().map(|s| s.round)
     }
 
     pub fn clear(&mut self) {
         self.submissions.clear();
+        self.inner = None;
     }
 
     pub fn add_submission(&mut self, submission: Submission) {
@@ -53,21 +99,23 @@ impl SubmissionsInRound {
     }
 }
 
-/// Wraps the subxt interfaces to make it easy to use for the staking-miner.
+/// Connects to a Substrate node and provides access to chain APIs.
 #[derive(Clone, Debug)]
 pub struct Client {
     /// Access to typed rpc calls from subxt.
     rpc: RpcClient,
     /// Access to chain APIs such as storage, events etc.
     chain_api: ChainClient,
+    /// The chain being used.
+    chain_name: Chain,
 }
 
 impl Client {
-    pub async fn new(uri: &str) -> Result<Self, subxt::Error> {
+    pub async fn new(uri: &str) -> anyhow::Result<Self> {
         tracing::debug!("attempting to connect to {:?}", uri);
 
-        let rpc = loop {
-            match subxt::backend::rpc::reconnecting_rpc_client::Client::builder()
+        let rpc = {
+            let rpc = subxt::backend::rpc::reconnecting_rpc_client::Client::builder()
                 .max_request_size(u32::MAX)
                 .max_response_size(u32::MAX)
                 .retry_policy(
@@ -76,23 +124,25 @@ impl Client {
                 )
                 .request_timeout(std::time::Duration::from_secs(600))
                 .build(uri.to_string())
-                .await
-            {
-                Ok(rpc) => break subxt::backend::rpc::RpcClient::new(rpc),
-                Err(e) => {
-                    tracing::warn!(
-                        "failed to connect to client due to {:?}, retrying soon..",
-                        e,
-                    );
-                }
-            };
-            tokio::time::sleep(std::time::Duration::from_millis(2_500)).await;
+                .await?;
+            subxt::backend::rpc::RpcClient::new(rpc)
         };
 
         let chain_api = ChainClient::from_rpc_client(rpc.clone()).await?;
+        let rpc = RpcClient::new(rpc);
+
+        let runtime_version = rpc.state_get_runtime_version(None).await?;
+        let spec_name = match runtime_version.other.get("specName") {
+            Some(serde_json::Value::String(n)) => n.clone(),
+            Some(_) => return Err(anyhow::anyhow!("specName is not a string")),
+            None => return Err(anyhow::anyhow!("specName not found")),
+        };
+        let chain_name = Chain::from_str(&spec_name).map_err(|e| anyhow::anyhow!("{e}"))?;
+
         Ok(Self {
-            rpc: RpcClient::new(rpc),
+            rpc,
             chain_api,
+            chain_name,
         })
     }
 
@@ -105,6 +155,11 @@ impl Client {
     pub fn chain_api(&self) -> &ChainClient {
         &self.chain_api
     }
+
+    /// Get the chain name.
+    pub fn chain_name(&self) -> Chain {
+        self.chain_name
+    }
 }
 
 /// The chain being used.
@@ -115,14 +170,19 @@ pub enum Chain {
     Polkadot,
 }
 
-impl std::fmt::Display for Chain {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let chain = match self {
+impl Chain {
+    pub fn as_str(&self) -> &str {
+        match self {
             Self::Polkadot => "polkadot",
             Self::Kusama => "kusama",
             Self::Westend => "westend",
-        };
-        write!(f, "{}", chain)
+        }
+    }
+}
+
+impl std::fmt::Display for Chain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 

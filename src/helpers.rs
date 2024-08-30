@@ -11,6 +11,7 @@ use crate::types::*;
 use codec::Decode;
 use pallet_election_provider_multi_phase::RawSolution;
 use subxt::config::Header as _;
+use tokio::sync::mpsc;
 
 pub async fn get_phase(client: &Client, block_hash: Hash) -> anyhow::Result<EpmPhase> {
     client
@@ -47,18 +48,21 @@ pub async fn read_block(
     client: &Client,
     block: &Header,
     state: &mut SubmissionsInRound,
-    chain: Chain,
 ) -> anyhow::Result<ReadBlock> {
     let mut res = ReadBlock::Done;
     let phase = get_phase(client, block.hash()).await?.0;
+    let round = get_round(client, block.hash()).await?;
 
-    tracing::info!("fetching block={}, phase={:?}", block.number(), phase);
+    tracing::info!(
+        "fetching block={}, phase={:?}, round={round}",
+        block.number(),
+        phase
+    );
 
     if !phase.is_signed() && !phase.is_unsigned_open() {
         return Ok(ReadBlock::PhaseClosed);
     }
 
-    let round = get_round(client, block.hash()).await?;
     let block = client.chain_api().blocks().at(block.hash()).await?;
     let mut submissions = HashMap::new();
 
@@ -82,7 +86,7 @@ pub async fn read_block(
 
             let mut bytes = ext.field_bytes();
 
-            match chain {
+            match client.chain_name() {
                 Chain::Kusama => {
                     let raw_solution: RawSolution<kusama::NposSolution24> =
                         Decode::decode(&mut bytes)?;
@@ -127,7 +131,7 @@ pub async fn read_block(
             if let subxt::events::Phase::ApplyExtrinsic(idx) = event.phase() {
                 if let Some((score, addr, r)) = submissions.remove(&idx) {
                     tracing::trace!("{:?}", solution);
-                    prometheus::submission(&chain.to_string(), round, addr, score);
+                    prometheus::submission(client.chain_name().as_str(), round, addr, score);
 
                     state.add_submission((score, addr, r));
                 }
@@ -144,7 +148,7 @@ pub async fn read_block(
     Ok(res)
 }
 
-pub async fn get_block(client: &Client, n: u32) -> anyhow::Result<Header> {
+pub async fn get_block(client: &Client, n: u64) -> anyhow::Result<Header> {
     let block_hash = client
         .rpc()
         .chain_get_block_hash(Some(n.into()))
@@ -163,13 +167,13 @@ pub async fn get_block(client: &Client, n: u32) -> anyhow::Result<Header> {
 }
 
 /// Runs until the RPC connection fails or updating the metadata failed.
-pub async fn runtime_upgrade_task(client: ChainClient) {
+pub async fn runtime_upgrade_task(client: ChainClient, tx: mpsc::Sender<String>) {
     let updater = client.updater();
 
     let mut update_stream = match updater.runtime_updates().await {
         Ok(u) => u,
         Err(e) => {
-            tracing::error!("Failed to get runtime upgrade subscription: {:?}", e);
+            _ = tx.send(e.to_string()).await;
             return;
         }
     };
@@ -183,7 +187,7 @@ pub async fn runtime_upgrade_task(client: ChainClient) {
                 update_stream = match updater.runtime_updates().await {
                     Ok(u) => u,
                     Err(e) => {
-                        tracing::error!("Failed to get runtime upgrade subscription: {:?}", e);
+                        _ = tx.send(e.to_string()).await;
                         return;
                     }
                 };
@@ -201,4 +205,30 @@ pub async fn runtime_upgrade_task(client: ChainClient) {
             }
         }
     }
+}
+
+// Read the previous blocks in the current round.
+pub async fn read_remaining_blocks_in_round(
+    client: &Client,
+    state: &mut SubmissionsInRound,
+    block_num: u64,
+) -> anyhow::Result<()> {
+    let first_block = std::cmp::min(
+        block_num,
+        state
+            .first_block()
+            .expect("At least one block processed; qed"),
+    );
+
+    let mut prev_block = first_block.checked_sub(1);
+    while let Some(b) = prev_block {
+        let old_block = get_block(client, b).await?;
+        match read_block(client, &old_block, state).await? {
+            ReadBlock::PhaseClosed | ReadBlock::ElectionFinalized(_) => break,
+            ReadBlock::Done => {}
+        }
+        prev_block = b.checked_sub(1);
+    }
+
+    Ok(())
 }
