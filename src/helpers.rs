@@ -8,6 +8,7 @@ use crate::prometheus;
 use crate::runtime;
 use crate::runtime::election_provider_multi_phase::events::ElectionFinalized;
 use crate::types::*;
+use crate::LOG_TARGET;
 use codec::Decode;
 use pallet_election_provider_multi_phase::RawSolution;
 use subxt::config::Header as _;
@@ -53,13 +54,14 @@ pub async fn read_block(
     let phase = get_phase(client, block.hash()).await?.0;
     let round = get_round(client, block.hash()).await?;
 
-    tracing::info!(
-        "fetching block={}, phase={:?}, round={round}",
+    tracing::trace!(
+        target: LOG_TARGET,
+        "fetch block={}, phase={:?}, round={round}",
         block.number(),
-        phase
+        phase,
     );
 
-    if !phase.is_signed() && !phase.is_unsigned_open() {
+    if !phase.is_signed() && !phase.is_unsigned_open() && !state.waiting_for_election_finalized() {
         return Ok(ReadBlock::PhaseClosed);
     }
 
@@ -78,7 +80,7 @@ pub async fn read_block(
             continue;
         }
 
-        tracing::info!("extrinsic={}_{}, idx={}", pallet_name, call, ext.index());
+        tracing::debug!(target: LOG_TARGET, "extrinsic={}_{}, idx={}", pallet_name, call, ext.index());
 
         if call == "submit" || call == "submit_unsigned" {
             // TODO: use multiaddress here.
@@ -90,22 +92,16 @@ pub async fn read_block(
                 Chain::Kusama => {
                     let raw_solution: RawSolution<kusama::NposSolution24> =
                         Decode::decode(&mut bytes)?;
-
-                    tracing::info!("score: {:?}", raw_solution.score);
                     submissions.insert(ext.index(), (raw_solution.score, addr, round));
                 }
                 Chain::Polkadot => {
                     let raw_solution: RawSolution<polkadot::NposSolution16> =
                         Decode::decode(&mut bytes)?;
-
-                    tracing::info!("score: {:?}", raw_solution.score);
                     submissions.insert(ext.index(), (raw_solution.score, addr, round));
                 }
                 Chain::Westend => {
                     let raw_solution: RawSolution<westend::NposSolution16> =
                         Decode::decode(&mut bytes)?;
-
-                    tracing::info!("score: {:?}", raw_solution.score);
                     submissions.insert(ext.index(), (raw_solution.score, addr, round));
                 }
             }
@@ -116,23 +112,16 @@ pub async fn read_block(
         let event = event?;
 
         if event.pallet_name() == "ElectionProviderMultiPhase" {
-            tracing::info!("event={}_{}", event.pallet_name(), event.variant_name());
+            tracing::debug!(target: LOG_TARGET, "event={}_{}", event.pallet_name(), event.variant_name());
         }
 
-        if let Some(phase) =
-            event.as_event::<runtime::election_provider_multi_phase::events::PhaseTransitioned>()?
-        {
-            tracing::info!("{:?}", phase);
-        }
-
-        if let Some(solution) =
+        if let Some(_) =
             event.as_event::<runtime::election_provider_multi_phase::events::SolutionStored>()?
         {
             if let subxt::events::Phase::ApplyExtrinsic(idx) = event.phase() {
                 if let Some((score, addr, r)) = submissions.remove(&idx) {
-                    tracing::trace!("{:?}", solution);
+                    tracing::trace!(target: LOG_TARGET, "Solution submitted addr={:?},score={:?}", addr, score);
                     prometheus::submission(client.chain_name().as_str(), round, addr, score);
-
                     state.add_submission((score, addr, r));
                 }
             }
@@ -183,7 +172,6 @@ pub async fn runtime_upgrade_task(client: ChainClient, tx: mpsc::Sender<String>)
         let update = match update_stream.next().await {
             Some(Ok(update)) => update,
             _ => {
-                tracing::warn!("Runtime upgrade subscription failed");
                 update_stream = match updater.runtime_updates().await {
                     Ok(u) => u,
                     Err(e) => {
@@ -196,12 +184,13 @@ pub async fn runtime_upgrade_task(client: ChainClient, tx: mpsc::Sender<String>)
         };
 
         let version = update.runtime_version().spec_version;
+
         match updater.apply_update(update) {
             Ok(()) => {
-                tracing::info!("upgrade to version: {} successful", version);
+                tracing::info!(target: LOG_TARGET, "upgrade to version: {} successful", version);
             }
             Err(e) => {
-                tracing::debug!("upgrade to version: {} failed: {:?}", version, e);
+                tracing::debug!(target: LOG_TARGET, "upgrade to version: {} failed: {:?}", version, e);
             }
         }
     }

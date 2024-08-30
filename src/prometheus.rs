@@ -7,6 +7,8 @@ use hyper::{
 };
 use prometheus::{Encoder, TextEncoder};
 
+use crate::LOG_TARGET;
+
 async fn serve_req(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     let response = match (req.method(), req.uri().path()) {
         (&Method::GET, "/metrics") => {
@@ -58,7 +60,7 @@ pub fn run(port: u16) -> Result<GracefulShutdown, String> {
         .map_err(|e| format!("Failed bind socket on port {} {:?}", port, e))?
         .serve(make_svc);
 
-    tracing::info!("Started prometheus endpoint on http://{}", addr);
+    tracing::info!(target: LOG_TARGET, "Started prometheus endpoint on http://{}", addr);
 
     let graceful = server.with_graceful_shutdown(async {
         rx.await.ok();
@@ -66,7 +68,7 @@ pub fn run(port: u16) -> Result<GracefulShutdown, String> {
 
     tokio::spawn(async move {
         if let Err(e) = graceful.await {
-            tracing::warn!("Server error: {}", e);
+            tracing::warn!(target: LOG_TARGET, "Server error: {}", e);
         }
     });
 

@@ -55,6 +55,10 @@ impl SubmissionsInRound {
         }
     }
 
+    pub fn waiting_for_election_finalized(&self) -> bool {
+        self.inner.is_some()
+    }
+
     pub fn new_block(&mut self, block: u64, round: u32) {
         if self.inner.is_none() {
             self.inner = Some(ActiveRound {
@@ -80,15 +84,6 @@ impl SubmissionsInRound {
         self.inner.as_ref().map(|s| s.start_block)
     }
 
-    #[allow(dead_code)]
-    pub fn last_block(&self) -> Option<u64> {
-        self.inner.as_ref().map(|s| s.last_block)
-    }
-
-    pub fn round(&self) -> Option<u32> {
-        self.inner.as_ref().map(|s| s.round)
-    }
-
     pub fn clear(&mut self) {
         self.submissions.clear();
         self.inner = None;
@@ -112,8 +107,6 @@ pub struct Client {
 
 impl Client {
     pub async fn new(uri: &str) -> anyhow::Result<Self> {
-        tracing::debug!("attempting to connect to {:?}", uri);
-
         let rpc = {
             let rpc = subxt::backend::rpc::reconnecting_rpc_client::Client::builder()
                 .max_request_size(u32::MAX)

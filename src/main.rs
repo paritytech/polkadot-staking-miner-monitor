@@ -9,7 +9,10 @@ mod types;
 use clap::Parser;
 use helpers::*;
 use tokio::sync::mpsc;
+use tracing_subscriber::util::SubscriberInitExt;
 use types::*;
+
+const LOG_TARGET: &str = "staking-miner-monitor";
 
 #[derive(Debug, Clone, Parser)]
 struct Opt {
@@ -29,9 +32,12 @@ async fn main() -> anyhow::Result<()> {
     let url = url.ok_or_else(|| anyhow::anyhow!("--url must be set"))?;
     let _prometheus_handle =
         prometheus::run(prometheus_port).map_err(|e| anyhow::anyhow!("{e}"))?;
-    tracing_subscriber::fmt()
-        .try_init()
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()?;
+
+    tracing_subscriber::FmtSubscriber::builder()
+        .with_env_filter(filter)
+        .finish()
+        .try_init()?;
 
     let client = Client::new(&url).await?;
 
@@ -79,13 +85,17 @@ async fn main() -> anyhow::Result<()> {
         let round = get_round(&client, block_ref.hash()).await?;
 
         tracing::info!(
+            target: LOG_TARGET,
             "block={}, phase={:?}, round={:?}",
             block.number(),
             curr_phase,
             round
         );
 
-        if !curr_phase.is_signed() && !curr_phase.is_unsigned_open() {
+        if !curr_phase.is_signed()
+            && !curr_phase.is_unsigned_open()
+            && !state.waiting_for_election_finalized()
+        {
             state.clear();
             continue;
         }
@@ -101,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
             ReadBlock::Done => continue,
         };
 
-        tracing::info!("state: {:?}", state);
+        tracing::debug!(target: LOG_TARGET, "submissions: {:?}", state);
 
         let (score, addr, r) = state
             .submissions
