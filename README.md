@@ -1,32 +1,72 @@
 ## Staking miner monitor
 
-This is a simple tool that monitors each election
-and emits prometheus metrics for each submission and
-which solution that was rewarded.
+This is a simple tool that monitors each election in polkadot, kusama and westend 
+then stores the solutions to the election and the winners in a SQLite database.
 
-## Usage
+The tool is based on the subxt library and is written in Rust.
+
+It exposes the following web API:
+
+- `GET /submissions` - Get all submissions from the database in JSON format.
+- `GET /submissions/{n}` - Get the `n` most recent submissions from the database in JSON format, n is a number.
+- `GET /winners` - Dump all winners from the database in JSON format.
+- `GET /winners/{n}` - Get the `n` most recent winners from the database in JSON format, n is a number.
+- `GET /unsigned-winners` - Get all winners that was submitted by a validator (this is fail-safe mechanism when no staking miner is available).
+. `GET /unsigned-winners/{n}` - Get the `n` most recent unsigned winners from the database in JSON format, n is a number.
+
+## Roadmap
+
+1. Add functionality to start syncing from a specific block instead of the latest. To get the full history of the contract.
+2. More sophisticated API to get more detailed information about the submissions and the winners.
+3. Support older metadata versions.
+
+### Limitations
+
+This tool is based on the subxt and this means that it is limited to blocks with metadata v14
+and why full history is not supported.
+
+
+### Usage
 
 ```bash
-$ curl http://127.0.0.1:9999/metrics
-# HELP epm_election_winner EPM election winner per round
-# TYPE epm_election_winner counter
-epm_election_winner{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="92",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_election_winner{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="93",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_election_winner{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="94",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_election_winner{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="95",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_election_winner{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="96",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_election_winner{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="97",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_election_winner{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="98",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_election_winner{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="99",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-# HELP epm_submissions EPM submissions per round
-# TYPE epm_submissions counter
-epm_submissions{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="100",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_submissions{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="92",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_submissions{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="93",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_submissions{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="94",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_submissions{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="95",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_submissions{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="96",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_submissions{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="97",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_submissions{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="98",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
-epm_submissions{address="0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",round="99",score="{\"score_minimal_stake\":\"100000000000000\",\"score_sum_squared\":\"10000000000000000000000000000\",\"score_sum_stake\":\"100000000000000\"}"} 1
+$ cargo run --release -- --url wss://rpc.polkadot.io
+```
+
+Open another terminal and run the following commands to use the API:
+
+#### Get all submissions
+
+```bash
+$ curl "http://localhost:9999/submissions"
+[
+    {"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":74,"block":1451,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":75,"block":1471,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
+    {"address":"unsigned","round":76,"block":1499,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"unsigned","round":77,"block":1519,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}]%
+```
+
+#### Get the most recent submission
+
+```bash
+$ curl "http://localhost:9999/winners"
+[{"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":74,"block":1468,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":75,"block":1488,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"unsigned","round":76,"block":1508,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"unsigned","round":77,"block":1528,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}]%
+```
+
+#### Get the most recent winner
+
+```bash
+$ curl "http://localhost:9999/winners/1"
+[{"address":"unsigned","round":78,"block":1548,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}]%
+```
+
+#### Get all unsigned winners
+
+```bash
+$ curl "http://localhost:9999/unsigned-winners"
+[{"address":"unsigned","round":76,"block":1508,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"unsigned","round":77,"block":1528,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"unsigned","round":78,"block":1548,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}]%
+```
+
+#### Get the most recent unsigned winner
+
+```bash
+$ curl "http://localhost:9999/unsigned-winners/1"
+[{"address":"unsigned","round":79,"block":1568,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}]%
 ```
