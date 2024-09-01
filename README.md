@@ -12,7 +12,7 @@ It exposes the following web API:
 - `GET /winners` - Dump all winners from the database in JSON format.
 - `GET /winners/{n}` - Get the `n` most recent winners from the database in JSON format, n is a number.
 - `GET /unsigned-winners` - Get all winners that was submitted by a validator (this is fail-safe mechanism when no staking miner is available).
-. `GET /unsigned-winners/{n}` - Get the `n` most recent unsigned winners from the database in JSON format, n is a number.
+- `GET /unsigned-winners/{n}` - Get the `n` most recent unsigned winners from the database in JSON format, n is a number.
 
 ## Roadmap
 
