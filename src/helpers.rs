@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use crate::prometheus;
+use crate::db;
 use crate::runtime;
 use crate::runtime::election_provider_multi_phase::events::ElectionFinalized;
 use crate::types::*;
@@ -49,6 +49,7 @@ pub async fn read_block(
     client: &Client,
     block: &Header,
     state: &mut SubmissionsInRound,
+    db: &db::Database,
 ) -> anyhow::Result<ReadBlock> {
     let mut res = ReadBlock::Done;
     let phase = get_phase(client, block.hash()).await?.0;
@@ -115,13 +116,14 @@ pub async fn read_block(
             tracing::debug!(target: LOG_TARGET, "event={}_{}", event.pallet_name(), event.variant_name());
         }
 
-        if let Some(_) =
-            event.as_event::<runtime::election_provider_multi_phase::events::SolutionStored>()?
+        if (event.as_event::<runtime::election_provider_multi_phase::events::SolutionStored>()?)
+            .is_some()
         {
             if let subxt::events::Phase::ApplyExtrinsic(idx) = event.phase() {
                 if let Some((score, addr, r)) = submissions.remove(&idx) {
                     tracing::trace!(target: LOG_TARGET, "Solution submitted addr={:?},score={:?}", addr, score);
-                    prometheus::submission(client.chain_name().as_str(), round, addr, score);
+                    db.insert_submission(addr, round, score, block.number())
+                        .await?;
                     state.add_submission((score, addr, r));
                 }
             }
@@ -149,7 +151,7 @@ pub async fn get_block(client: &Client, n: u64) -> anyhow::Result<Header> {
         .backend()
         .block_header(block_hash)
         .await
-        .map_err(|e| anyhow::Error::from(e))?
+        .map_err(anyhow::Error::from)?
         .expect("Known block; qed");
 
     Ok(header)
@@ -201,6 +203,7 @@ pub async fn read_remaining_blocks_in_round(
     client: &Client,
     state: &mut SubmissionsInRound,
     block_num: u64,
+    db: &db::Database,
 ) -> anyhow::Result<()> {
     let first_block = std::cmp::min(
         block_num,
@@ -212,7 +215,7 @@ pub async fn read_remaining_blocks_in_round(
     let mut prev_block = first_block.checked_sub(1);
     while let Some(b) = prev_block {
         let old_block = get_block(client, b).await?;
-        match read_block(client, &old_block, state).await? {
+        match read_block(client, &old_block, state, db).await? {
             ReadBlock::PhaseClosed | ReadBlock::ElectionFinalized(_) => break,
             ReadBlock::Done => {}
         }

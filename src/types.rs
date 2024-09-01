@@ -27,6 +27,7 @@ pub type Header = subxt::config::substrate::SubstrateHeader<
 
 pub type EpmPhase = subxt::utils::Static<pallet_election_provider_multi_phase::Phase<u32>>;
 pub use subxt::config::Header as HeaderT;
+pub type Address = Hash;
 
 use std::str::FromStr;
 use subxt::backend::rpc::reconnecting_rpc_client::ExponentialBackoff;
