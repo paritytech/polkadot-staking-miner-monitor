@@ -1,4 +1,4 @@
-## Staking miner monitor
+## Polkadot staking miner monitor
 
 This is a simple tool that monitors each election in polkadot, kusama and westend 
 then stores the solutions to the election and the winners in a SQLite database.
