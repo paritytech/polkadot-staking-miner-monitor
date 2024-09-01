@@ -39,29 +39,41 @@ Open another terminal and run the following commands to use the API:
 ```bash
 $ curl "http://localhost:9999/submissions"
 [
-    {"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":74,"block":1451,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":75,"block":1471,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
-    {"address":"unsigned","round":76,"block":1499,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"unsigned","round":77,"block":1519,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}]%
+    {"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":74,"block":1451,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
+    {"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":75,"block":1471,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
+    {"address":"unsigned","round":76,"block":1499,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
+    {"address":"unsigned","round":77,"block":1519,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}
+]
 ```
 
 #### Get the most recent submission
 
 ```bash
 $ curl "http://localhost:9999/winners"
-[{"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":74,"block":1468,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":75,"block":1488,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"unsigned","round":76,"block":1508,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"unsigned","round":77,"block":1528,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}]%
+[
+    {"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":74,"block":1468,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
+    {"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":75,"block":1488,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
+    {"address":"unsigned","round":76,"block":1508,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
+    {"address":"unsigned","round":77,"block":1528,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}
+]
 ```
 
 #### Get the most recent winner
 
 ```bash
 $ curl "http://localhost:9999/winners/1"
-[{"address":"unsigned","round":78,"block":1548,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}]%
+[{"address":"unsigned","round":78,"block":1548,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}]
 ```
 
 #### Get all unsigned winners
 
 ```bash
 $ curl "http://localhost:9999/unsigned-winners"
-[{"address":"unsigned","round":76,"block":1508,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"unsigned","round":77,"block":1528,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},{"address":"unsigned","round":78,"block":1548,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}]%
+[
+    {"address":"unsigned","round":76,"block":1508,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
+    {"address":"unsigned","round":77,"block":1528,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
+    {"address":"unsigned","round":78,"block":1548,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}
+]
 ```
 
 #### Get the most recent unsigned winner
