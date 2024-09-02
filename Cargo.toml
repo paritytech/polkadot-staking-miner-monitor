@@ -9,16 +9,13 @@ edition = "2021"
 anyhow = "1.0.71"
 clap = { version = "4.3.2", features = ["derive"] } 
 codec = { version = "3.0.0", package = "parity-scale-codec" }
-r2d2 = "0.8"
-r2d2_sqlite = "0.25"
-rusqlite = { version = "0.32.0", features = ["bundled"] }
 directories = "5"
 features = "0.10.0"
-futures = "0.3.28"
-once_cell = "1.18"
 serde = "1"
 serde_json = "1"
+sqliter = "0.5.1"
 subxt = { version = "0.37.0", features = ["substrate-compat", "unstable-reconnecting-rpc-client"] }
+thiserror = "1.0.30"
 tokio = { version = "1.40", features = ["sync", "macros", "rt-multi-thread"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
@@ -32,3 +29,6 @@ frame-support = "37.0.0"
 pallet-election-provider-multi-phase = "36.0.0"
 sp-npos-elections = "34.0.0"
 sp-runtime = "39.0.0"
+
+[dev-dependencies]
+tempfile = "3.12.0"

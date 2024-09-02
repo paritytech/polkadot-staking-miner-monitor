@@ -66,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
             .data_dir()
             .join(format!("{}.db", client.chain_name()));
 
-        db::Database::new(path)?
+        db::Database::new(path).await?
     };
 
     let db2 = db.clone();
