@@ -10,8 +10,8 @@ then stores the following data related in a SQLite database:
 - slashed: Get the slashed accounts
 
 The tool is based on the subxt library and is written in Rust.
-It exposes the following web APIs:
 
+## Web APIs
 - `GET /submissions` - Get all submissions from the database in JSON format.
 - `GET /submissions/{n}` - Get the `n` most recent submissions from the database in JSON format, n is a number.
 - `GET /winners` - Dump all winners from the database in JSON format.
