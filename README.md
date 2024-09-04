@@ -4,10 +4,10 @@ This is a simple tool that monitors each election in polkadot, kusama and westen
 then stores the following data related in a SQLite database:
 - submissions: The list of all submissions in each election, this is regarded 
   as successful if the solution extrinsic is accepted by the chain. The solution may
-  be rejected at the end of the election when it's fully verified. You can use `slashed`
-  to check if the solution is accepted or not.
-- winners: The list of all winner in each election
-- slashed: The list of all slashed solutions in each election
+  be rejected at the end of the election when it's fully verified. You need check `slashed`
+  together with this to know whether a solution was truly valid.
+- winners: Get the winners of each round
+- slashed: Get the slashed accounts
 
 The tool is based on the subxt library and is written in Rust.
 It exposes the following web APIs:
