@@ -89,6 +89,7 @@ async fn main() -> anyhow::Result<()> {
                         "/unsigned-winners",
                         web::get().to(routes::all_unsigned_winners),
                     )
+                    .route("/slashed", web::get().to(routes::all_slashed))
                     .route(
                         "/submissions/{n}",
                         web::get().to(routes::most_recent_submissions),
@@ -101,6 +102,7 @@ async fn main() -> anyhow::Result<()> {
                         "/unsigned-winners/{n}",
                         web::get().to(routes::most_recent_unsigned_winners),
                     )
+                    .route("/slashed/{n}", web::get().to(routes::most_recent_slashed))
             })
             .bind(listen_addr)?
             .run()
@@ -179,7 +181,7 @@ async fn main() -> anyhow::Result<()> {
 
         state.new_block(block.number() as u64, round);
 
-        let winner = match read_block(&client, &block, &mut state, &db).await? {
+        let election_finalized = match read_block(&client, &block, &mut state, &db).await? {
             ReadBlock::PhaseClosed => unreachable!("Phase already checked; qed"),
             ReadBlock::ElectionFinalized(winner) => {
                 read_remaining_blocks_in_round(&client, &mut state, block.number() as u64, &db)
@@ -189,18 +191,21 @@ async fn main() -> anyhow::Result<()> {
             ReadBlock::Done => continue,
         };
 
-        tracing::debug!(target: LOG_TARGET, "submissions: {:?}", state);
+        tracing::debug!(target: LOG_TARGET, "state {:?}", state);
 
-        let (score, addr, r) = state
-            .submissions
-            .iter()
-            .max_by(|a, b| a.0.cmp(&b.0))
-            .cloned()
-            .expect("A winner must exist; qed");
+        // If the winner is rewarded it's signed otherwise it's unsigned.
+        let who = match state.complete() {
+            Some(who) => who,
+            None => Address::unsigned(),
+        };
 
-        assert_eq!(score, winner.score.0);
-        db.insert_election_winner(addr, r, score, block.number)
-            .await?;
+        db.insert_election_winner(Winner {
+            who,
+            round,
+            block: block.number(),
+            score: election_finalized.score.0,
+        })
+        .await?;
         state.clear();
     }
 }

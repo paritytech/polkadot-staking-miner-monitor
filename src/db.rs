@@ -2,10 +2,9 @@
 // This file is dual-licensed as Apache-2.0 or GPL-3.0.
 // see LICENSE for license details.
 
-use crate::{Address, LOG_TARGET};
-use sp_npos_elections::ElectionScore;
+use crate::{Address, Slashed, Submission, Winner, LOG_TARGET};
 use sqliter::{async_rusqlite, rusqlite, Connection, ConnectionBuilder};
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, str::FromStr};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -23,31 +22,6 @@ impl From<async_rusqlite::AlreadyClosed> for Error {
     fn from(e: async_rusqlite::AlreadyClosed) -> Self {
         Self::Closed(e)
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-/// Database tables.
-enum Table {
-    Submissions,
-    ElectionWinners,
-}
-
-impl Table {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::Submissions => "submissions",
-            Self::ElectionWinners => "election_winners",
-        }
-    }
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(test, derive(PartialEq))]
-pub struct Submission {
-    pub address: String,
-    pub round: u32,
-    pub block: u32,
-    pub score: ElectionScore,
 }
 
 #[derive(Debug, Clone)]
@@ -69,7 +43,8 @@ impl Database {
                         address TEXT,
                         round INTEGER,
                         block INTEGER,
-                        score BLOB
+                        score BLOB,
+                        success INTEGER
                     ) STRICT;
                     CREATE TABLE IF NOT EXISTS election_winners (
                         id INTEGER PRIMARY KEY NOT NULL,
@@ -77,6 +52,13 @@ impl Database {
                         round INTEGER,
                         block INTEGER,
                         score BLOB
+                    ) STRICT;
+                    CREATE TABLE IF NOT EXISTS slashed (
+                        id INTEGER PRIMARY KEY NOT NULL,
+                        address TEXT,
+                        amount TEXT,
+                        round INTEGER,
+                        block INTEGER
                     ) STRICT;
                     ",
                 )
@@ -88,52 +70,66 @@ impl Database {
         Ok(Self(conn))
     }
 
-    pub async fn insert_submission(
-        &self,
-        address: Option<Address>,
-        round: u32,
-        score: ElectionScore,
-        block: u32,
-    ) -> Result<(), Error> {
-        self.insert(Table::Submissions, address, round, score, block)
-            .await
-    }
+    pub async fn insert_submission(&self, submission: Submission) -> Result<(), Error> {
+        let Submission {
+            who,
+            round,
+            block,
+            score,
+            success,
+        } = submission;
 
-    pub async fn insert_election_winner(
-        &self,
-        address: Option<Address>,
-        round: u32,
-        score: ElectionScore,
-        block: u32,
-    ) -> Result<(), Error> {
-        self.insert(Table::ElectionWinners, address, round, score, block)
-            .await
-    }
-
-    async fn insert(
-        &self,
-        table: Table,
-        address: Option<Address>,
-        round: u32,
-        score: ElectionScore,
-        block: u32,
-    ) -> Result<(), Error> {
-        let addr = if let Some(addr) = address {
-            // The debug formatter for `Address` is the hex representation of the full address.
-            format!("{:?}", addr)
-        } else {
-            "unsigned".to_string()
-        };
-
+        let success = if success { 1 } else { 0 };
+        let who = who.to_string();
         let score = serde_json::to_vec(&score)?;
         self.0
             .call(move |conn| {
                 conn.execute(
-                    &format!(
-                        "INSERT INTO {} (address, round, block, score) VALUES (?1, ?2, ?3, ?4)",
-                        table.as_str(),
-                    ),
-                    rusqlite::params![addr, round, block, score],
+                    "INSERT INTO submissions (address, round, block, score, success) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    rusqlite::params![who, round, block, score, success],
+                )
+            })
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn insert_election_winner(&self, winner: Winner) -> Result<(), Error> {
+        let Winner {
+            who,
+            round,
+            block,
+            score,
+        } = winner;
+
+        let score = serde_json::to_vec(&score)?;
+        let who = who.to_string();
+
+        self.0
+            .call(move |conn| {
+                conn.execute(
+                    "INSERT INTO election_winners (address, round, block, score) VALUES (?1, ?2, ?3, ?4)",
+                    rusqlite::params![who, round, block, score],
+                )
+            })
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn insert_slashed(&self, slashed: Slashed) -> Result<(), Error> {
+        let Slashed {
+            who,
+            round,
+            block,
+            amount,
+        } = slashed;
+
+        self.0
+            .call(move |conn| {
+                conn.execute(
+                    "INSERT INTO slashed (address, amount, round, block) VALUES (?1, ?2, ?3, ?4)",
+                    rusqlite::params![who.to_string(), amount, round, block],
                 )
             })
             .await?;
@@ -142,19 +138,21 @@ impl Database {
     }
 
     pub async fn get_all_submissions(&self) -> Result<Vec<Submission>, Error> {
-        self.get_all(Table::Submissions).await
+        self.0
+            .call(|conn| submissions(conn.prepare("SELECT * FROM submissions")?))
+            .await
     }
 
-    pub async fn get_all_election_winners(&self) -> Result<Vec<Submission>, Error> {
-        self.get_all(Table::ElectionWinners).await
+    pub async fn get_all_election_winners(&self) -> Result<Vec<Winner>, Error> {
+        self.0
+            .call(|conn| winners(conn.prepare("SELECT * FROM election_winners")?))
+            .await
     }
 
-    pub async fn get_all_unsigned_winners(&self) -> Result<Vec<Submission>, Error> {
+    pub async fn get_all_unsigned_winners(&self) -> Result<Vec<Winner>, Error> {
         self.0
             .call(|conn| {
-                stmt_to_submissions(
-                    conn.prepare("SELECT * FROM election_winners WHERE address = 'unsigned'")?,
-                )
+                winners(conn.prepare("SELECT * FROM election_winners WHERE address = 'unsigned'")?)
             })
             .await
     }
@@ -162,9 +160,9 @@ impl Database {
     pub async fn get_most_recent_unsigned_winners(
         &self,
         n: NonZeroUsize,
-    ) -> Result<Vec<Submission>, Error> {
+    ) -> Result<Vec<Winner>, Error> {
         self.0.call(move |conn| {
-            stmt_to_submissions(conn.prepare(&format!("SELECT * FROM election_winners WHERE address = 'unsigned' ORDER BY round DESC LIMIT {n}"))?)
+            winners(conn.prepare(&format!("SELECT * FROM election_winners WHERE address = 'unsigned' ORDER BY round DESC LIMIT {n}"))?)
         }).await
     }
 
@@ -172,51 +170,74 @@ impl Database {
         &self,
         n: NonZeroUsize,
     ) -> Result<Vec<Submission>, Error> {
-        self.get_most_recent(Table::Submissions, n).await
+        self.0
+            .call(move |conn| {
+                let stmt = conn.prepare(&format!(
+                    "SELECT * FROM submissions ORDER BY round DESC LIMIT {n}",
+                ))?;
+                submissions(stmt)
+            })
+            .await
     }
 
     pub async fn get_most_recent_election_winners(
         &self,
         n: NonZeroUsize,
-    ) -> Result<Vec<Submission>, Error> {
-        self.get_most_recent(Table::ElectionWinners, n).await
-    }
-
-    async fn get_all(&self, table: Table) -> Result<Vec<Submission>, Error> {
+    ) -> Result<Vec<Winner>, Error> {
         self.0
             .call(move |conn| {
-                stmt_to_submissions(conn.prepare(&format!("SELECT * FROM {}", table.as_str()))?)
+                let stmt = conn.prepare(&format!(
+                    "SELECT * FROM election_winners ORDER BY round DESC LIMIT {n}",
+                ))?;
+                winners(stmt)
             })
             .await
     }
 
-    async fn get_most_recent(
-        &self,
-        table: Table,
-        n: NonZeroUsize,
-    ) -> Result<Vec<Submission>, Error> {
+    pub async fn get_all_slashed(&self) -> Result<Vec<Slashed>, Error> {
+        self.0
+            .call(|conn| slashed(conn.prepare("SELECT * FROM slashed")?))
+            .await
+    }
+
+    pub async fn get_most_recent_slashed(&self, n: NonZeroUsize) -> Result<Vec<Slashed>, Error> {
         self.0
             .call(move |conn| {
                 let stmt = conn.prepare(&format!(
-                    "SELECT * FROM {} ORDER BY round DESC LIMIT {n}",
-                    table.as_str(),
+                    "SELECT * FROM slashed ORDER BY round DESC LIMIT {n}",
                 ))?;
-                stmt_to_submissions(stmt)
+                slashed(stmt)
             })
             .await
     }
 }
 
-fn stmt_to_submissions(mut stmt: rusqlite::Statement<'_>) -> Result<Vec<Submission>, Error> {
+fn submissions(mut stmt: rusqlite::Statement<'_>) -> Result<Vec<Submission>, Error> {
     let rows = stmt.query_map([], |row| {
-        let bytes: Vec<u8> = row.get(4)?;
-        let s = serde_json::from_slice(&bytes).unwrap();
+        let who = {
+            let a: String = row.get(1)?;
+            Address::from_str(&a).unwrap()
+        };
+        let round = row.get(2)?;
+        let block = row.get(3)?;
+        let score = {
+            let bytes: Vec<u8> = row.get(4)?;
+            serde_json::from_slice(&bytes).unwrap()
+        };
+        let success = {
+            match row.get(5)? {
+                0 => false,
+                1 => true,
+                _ => unreachable!(),
+            }
+        };
 
         Ok(Submission {
-            address: row.get(1)?,
-            round: row.get(2)?,
-            block: row.get(3)?,
-            score: s,
+            who,
+            round,
+            block,
+            score,
+            success,
         })
     })?;
 
@@ -229,30 +250,114 @@ fn stmt_to_submissions(mut stmt: rusqlite::Statement<'_>) -> Result<Vec<Submissi
     Ok(submissions)
 }
 
+fn winners(mut stmt: rusqlite::Statement<'_>) -> Result<Vec<Winner>, Error> {
+    let rows = stmt.query_map([], |row| {
+        let who = {
+            let a: String = row.get(1)?;
+            Address::from_str(&a).unwrap()
+        };
+        let round = row.get(2)?;
+        let block = row.get(3)?;
+
+        let score = {
+            let bytes: Vec<u8> = row.get(4)?;
+            serde_json::from_slice(&bytes).unwrap()
+        };
+
+        Ok(Winner {
+            who,
+            round,
+            block,
+            score,
+        })
+    })?;
+
+    let mut winners = Vec::new();
+    for row in rows {
+        let row = row?;
+        winners.push(row);
+    }
+
+    Ok(winners)
+}
+
+fn slashed(mut stmt: rusqlite::Statement<'_>) -> Result<Vec<Slashed>, Error> {
+    let rows = stmt.query_map([], |row| {
+        let who = {
+            let a: String = row.get(1)?;
+            Address::from_str(&a).unwrap()
+        };
+
+        Ok(Slashed {
+            who,
+            amount: row.get(2)?,
+            round: row.get(3)?,
+            block: row.get(4)?,
+        })
+    })?;
+
+    let mut winners = Vec::new();
+    for row in rows {
+        let row = row?;
+        winners.push(row);
+    }
+
+    Ok(winners)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Database, Submission};
+    use super::{Address, Database, Slashed, Submission, Winner};
 
     #[tokio::test]
-    async fn it_works() {
+    async fn put_get_submission_works() {
         let tempdir = tempfile::tempdir().unwrap();
         let path = tempdir.path().join("test-db1.app");
 
         let db = Database::new(&path).await.unwrap();
-        db.insert_submission(None, 1, Default::default(), 1)
-            .await
-            .unwrap();
+        let submission = Submission {
+            who: Address::unsigned(),
+            round: 1,
+            block: 1,
+            score: Default::default(),
+            success: true,
+        };
 
-        let submissions = db.get_all_submissions().await.unwrap();
+        db.insert_submission(submission.clone()).await.unwrap();
+        assert_eq!(db.get_all_submissions().await.unwrap(), vec![submission]);
+    }
 
-        assert_eq!(
-            submissions,
-            vec![Submission {
-                address: "unsigned".to_string(),
-                round: 1,
-                block: 1,
-                score: Default::default(),
-            }]
-        );
+    #[tokio::test]
+    async fn put_get_winner_works() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path().join("test-db1.app");
+
+        let db = Database::new(&path).await.unwrap();
+        let winner = Winner {
+            who: Address::unsigned(),
+            round: 1,
+            block: 1,
+            score: Default::default(),
+        };
+
+        db.insert_election_winner(winner.clone()).await.unwrap();
+        assert_eq!(db.get_all_election_winners().await.unwrap(), vec![winner]);
+    }
+
+    #[tokio::test]
+    async fn put_get_slashed() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path().join("test-db1.app");
+
+        let db = Database::new(&path).await.unwrap();
+        let slashed = Slashed {
+            who: Address::unsigned(),
+            amount: "100".to_owned(),
+            round: 1,
+            block: 1,
+        };
+
+        db.insert_slashed(slashed.clone()).await.unwrap();
+        assert_eq!(db.get_all_slashed().await.unwrap(), vec![slashed]);
     }
 }

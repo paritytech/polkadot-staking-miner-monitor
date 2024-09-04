@@ -50,6 +50,16 @@ pub async fn all_unsigned_winners(db: web::Data<Database>) -> Result<HttpRespons
         .body(body))
 }
 
+pub async fn all_slashed(db: web::Data<Database>) -> Result<HttpResponse, Error> {
+    let slashed = db.get_all_slashed().await.map_err(BoxError::from)?;
+
+    let body = serde_json::to_string(&slashed).map_err(BoxError::from)?;
+
+    Ok(HttpResponse::build(StatusCode::OK)
+        .content_type("application/json; charset=utf-8")
+        .body(body))
+}
+
 pub async fn most_recent_submissions(
     db: web::Data<Database>,
     info: web::Path<NonZeroUsize>,
@@ -89,6 +99,21 @@ pub async fn most_recent_unsigned_winners(
         .await
         .map_err(BoxError::from)?;
     let body = serde_json::to_string(&submissions).map_err(BoxError::from)?;
+
+    Ok(HttpResponse::build(StatusCode::OK)
+        .content_type("application/json; charset=utf-8")
+        .body(body))
+}
+
+pub async fn most_recent_slashed(
+    db: web::Data<Database>,
+    info: web::Path<NonZeroUsize>,
+) -> Result<HttpResponse, Error> {
+    let slashed = db
+        .get_most_recent_slashed(info.into_inner())
+        .await
+        .map_err(BoxError::from)?;
+    let body = serde_json::to_string(&slashed).map_err(BoxError::from)?;
 
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("application/json; charset=utf-8")

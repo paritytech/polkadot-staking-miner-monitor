@@ -1,11 +1,16 @@
 ## Polkadot staking miner monitor
 
 This is a simple tool that monitors each election in polkadot, kusama and westend 
-then stores the solutions to the election and the winners in a SQLite database.
+then stores the following data related in a SQLite database:
+- submissions: The list of all submissions in each election, this is regarded 
+  as successful if the solution extrinsic is accepted by the chain. The solution may
+  be rejected at the end of the election when it's fully verified. You can use `slashed`
+  to check if the solution is accepted or not.
+- winners: The list of all winner in each election
+- slashed: The list of all slashed solutions in each election
 
 The tool is based on the subxt library and is written in Rust.
-
-It exposes the following web API:
+It exposes the following web APIs:
 
 - `GET /submissions` - Get all submissions from the database in JSON format.
 - `GET /submissions/{n}` - Get the `n` most recent submissions from the database in JSON format, n is a number.
@@ -13,6 +18,8 @@ It exposes the following web API:
 - `GET /winners/{n}` - Get the `n` most recent winners from the database in JSON format, n is a number.
 - `GET /unsigned-winners` - Get all winners that was submitted by a validator (this is fail-safe mechanism when no staking miner is available).
 - `GET /unsigned-winners/{n}` - Get the `n` most recent unsigned winners from the database in JSON format, n is a number.
+- `GET /slashed` - Get all slashed solutions from the database in JSON format.
+- `GET /slashed/{n}` - Get the `n` most recent slashed solutions from the database in JSON format, n is a number.
 
 ## Roadmap
 
@@ -24,7 +31,6 @@ It exposes the following web API:
 
 This tool is based on the subxt and this means that it is limited to blocks with metadata v14
 and why full history is not supported.
-
 
 ### Usage
 
@@ -39,22 +45,27 @@ Open another terminal and run the following commands to use the API:
 ```bash
 $ curl "http://localhost:9999/submissions"
 [
-    {"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":74,"block":1451,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
-    {"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":75,"block":1471,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
-    {"address":"unsigned","round":76,"block":1499,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
-    {"address":"unsigned","round":77,"block":1519,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}
+    {"who":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":79,"block":1564,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000},"success":true},
+    {"who":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":80,"block":1584,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000},"success":true},
+    {"who":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":81,"block":1604,"score":{"minimal_stake":340282366920938463463374607431768211455,"sum_stake":340282366920938463463374607431768211455,"sum_stake_squared":340282366920938463463374607431768211455},"success":true},
+    {"who":"unsigned","round":81,"block":1612,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000},"success":true}
 ]
 ```
 
 #### Get the most recent submission
+```bash
+$ curl "http://localhost:9999/submissions"
+[{"who":"unsigned","round":82,"block":1632,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000},"success":true}]
+```
+
+#### Get all winners
 
 ```bash
 $ curl "http://localhost:9999/winners"
 [
-    {"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":74,"block":1468,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
-    {"address":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":75,"block":1488,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
-    {"address":"unsigned","round":76,"block":1508,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
-    {"address":"unsigned","round":77,"block":1528,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}
+    {"who":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":80,"block":1581,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
+    {"who":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":81,"block":1601,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
+    {"who":"unsigned","round":82,"block":1621,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}
 ]
 ```
 
@@ -62,7 +73,9 @@ $ curl "http://localhost:9999/winners"
 
 ```bash
 $ curl "http://localhost:9999/winners/1"
-[{"address":"unsigned","round":78,"block":1548,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}]
+[
+    {"who":"unsigned","round":82,"block":1621,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}
+]
 ```
 
 #### Get all unsigned winners
@@ -70,9 +83,8 @@ $ curl "http://localhost:9999/winners/1"
 ```bash
 $ curl "http://localhost:9999/unsigned-winners"
 [
-    {"address":"unsigned","round":76,"block":1508,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
-    {"address":"unsigned","round":77,"block":1528,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
-    {"address":"unsigned","round":78,"block":1548,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}
+    {"who":"unsigned","round":82,"block":1621,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}},
+    {"who":"unsigned","round":83,"block":1641,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}
 ]
 ```
 
@@ -80,5 +92,25 @@ $ curl "http://localhost:9999/unsigned-winners"
 
 ```bash
 $ curl "http://localhost:9999/unsigned-winners/1"
-[{"address":"unsigned","round":79,"block":1568,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}]%
+[
+    {"who":"unsigned","round":83,"block":1641,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000}}
+]
+```
+
+#### Get all slashed solutions
+
+```bash
+$ curl "http://localhost:9999/slashed"
+[
+    {"who":"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d","round":81,"block":1611,"amount":"2000034179670"},
+    {"who":"0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48","round":85,"block":1691,"amount":"2000034179670"}]
+```
+
+#### Get all slashed solutions
+
+```bash
+$ curl "http://localhost:9999/slashed/1"
+[
+    {"who":"0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48","round":85,"block":1691,"amount":"2000034179670"}
+]
 ```

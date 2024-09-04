@@ -19,7 +19,6 @@ pub mod runtime {}
 pub type RpcClient = subxt::backend::legacy::LegacyRpcMethods<subxt::PolkadotConfig>;
 pub type ChainClient = subxt::OnlineClient<subxt::PolkadotConfig>;
 pub type Hash = subxt::ext::sp_core::H256;
-pub type Submission = (sp_npos_elections::ElectionScore, Option<Hash>, u32);
 pub type Header = subxt::config::substrate::SubstrateHeader<
     u32,
     <subxt::PolkadotConfig as subxt::Config>::Hasher,
@@ -27,10 +26,12 @@ pub type Header = subxt::config::substrate::SubstrateHeader<
 
 pub type EpmPhase = subxt::utils::Static<pallet_election_provider_multi_phase::Phase<u32>>;
 pub use subxt::config::Header as HeaderT;
-pub type Address = Hash;
+pub type ExtrinsicDetails = subxt::blocks::ExtrinsicDetails<subxt::PolkadotConfig, ChainClient>;
 
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use sp_npos_elections::ElectionScore;
 use std::str::FromStr;
-use subxt::backend::rpc::reconnecting_rpc_client::ExponentialBackoff;
+use subxt::{backend::rpc::reconnecting_rpc_client::ExponentialBackoff, utils::H256};
 
 pub const EPM_PALLET_NAME: &str = "ElectionProviderMultiPhase";
 
@@ -41,17 +42,58 @@ struct ActiveRound {
     last_block: u64,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Submission {
+    pub who: Address,
+    pub round: u32,
+    pub block: u32,
+    pub score: ElectionScore,
+    pub success: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Winner {
+    pub who: Address,
+    pub round: u32,
+    pub block: u32,
+    pub score: ElectionScore,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Slashed {
+    pub who: Address,
+    pub round: u32,
+    pub block: u32,
+    pub amount: String,
+}
+
+impl Slashed {
+    pub fn new(
+        who: subxt::config::substrate::AccountId32,
+        round: u32,
+        block: u32,
+        amount: u128,
+    ) -> Self {
+        Self {
+            who: Address::from_bytes(who.0.as_ref()),
+            round,
+            block,
+            amount: amount.to_string(),
+        }
+    }
+}
+
 /// Represents the submissions in a round and should be cleared after each round.
 #[derive(Debug)]
 pub struct SubmissionsInRound {
-    pub submissions: Vec<Submission>,
+    winner: Option<Address>,
     inner: Option<ActiveRound>,
 }
 
 impl SubmissionsInRound {
     pub fn new() -> Self {
         Self {
-            submissions: Vec::new(),
+            winner: None,
             inner: None,
         }
     }
@@ -86,12 +128,18 @@ impl SubmissionsInRound {
     }
 
     pub fn clear(&mut self) {
-        self.submissions.clear();
+        self.winner = None;
         self.inner = None;
     }
 
-    pub fn add_submission(&mut self, submission: Submission) {
-        self.submissions.push(submission);
+    pub fn set_winner(&mut self, winner: Address) {
+        assert!(self.winner.is_none());
+        self.winner = Some(winner);
+    }
+
+    pub fn complete(&mut self) -> Option<Address> {
+        self.inner.take();
+        self.winner.take()
     }
 }
 
@@ -193,44 +241,57 @@ impl std::str::FromStr for Chain {
     }
 }
 
-pub mod kusama {
-    use frame_support::traits::ConstU32;
+#[derive(Clone, Debug, PartialEq)]
+pub struct Address(String);
 
-    frame_election_provider_support::generate_solution_type!(
-        #[compact]
-        pub struct NposSolution24::<
-            VoterIndex = u32,
-            TargetIndex = u16,
-            Accuracy = sp_runtime::PerU16,
-            MaxVoters = ConstU32::<12500>
-        >(24)
-    );
+impl std::fmt::Display for Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
 }
 
-pub mod polkadot {
-    use frame_support::traits::ConstU32;
+impl Address {
+    pub fn unsigned() -> Self {
+        Self("unsigned".to_string())
+    }
 
-    frame_election_provider_support::generate_solution_type!(
-        #[compact]
-        pub struct NposSolution16::<
-            VoterIndex = u32,
-            TargetIndex = u16,
-            Accuracy = sp_runtime::PerU16,
-            MaxVoters = ConstU32::<12500>
-        >(16)
-    );
+    pub fn signed(addr: Hash) -> Self {
+        Self(format!("{:?}", addr))
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        Self::signed(Hash::from_slice(bytes))
+    }
 }
 
-pub mod westend {
-    use frame_support::traits::ConstU32;
+impl FromStr for Address {
+    type Err = String;
 
-    frame_election_provider_support::generate_solution_type!(
-        #[compact]
-        pub struct NposSolution16::<
-            VoterIndex = u32,
-            TargetIndex = u16,
-            Accuracy = sp_runtime::PerU16,
-            MaxVoters = ConstU32::<12500>
-        >(16)
-    );
+    fn from_str(s: &str) -> Result<Self, String> {
+        Ok(match s.to_lowercase().trim() {
+            "unsigned" => Self::unsigned(),
+            other => H256::from_str(other)
+                .map(Self::signed)
+                .map_err(|e| format!("{e}"))?,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for Address {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(Address(s))
+    }
+}
+
+impl Serialize for Address {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.serialize(serializer)
+    }
 }

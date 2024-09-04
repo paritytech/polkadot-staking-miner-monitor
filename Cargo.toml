@@ -11,6 +11,7 @@ clap = { version = "4.3.2", features = ["derive"] }
 codec = { version = "3.0.0", package = "parity-scale-codec" }
 directories = "5"
 features = "0.10.0"
+scale-info = "2.11"
 serde = "1"
 serde_json = "1"
 sqliter = "0.5.1"
@@ -24,11 +25,8 @@ tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 actix-web = "4.9"
 
 # polkadot-sdk
-frame-election-provider-support = "37.0.0"
-frame-support = "37.0.0"
 pallet-election-provider-multi-phase = "36.0.0"
 sp-npos-elections = "34.0.0"
-sp-runtime = "39.0.0"
 
 [dev-dependencies]
 tempfile = "3.12.0"
