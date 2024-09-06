@@ -7,12 +7,10 @@ mod helpers;
 mod routes;
 mod types;
 
-use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::PathBuf,
-};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use clap::Parser;
+use db::Winner;
 use helpers::*;
 use tokio::{
     signal::unix::{signal, SignalKind},
@@ -20,27 +18,31 @@ use tokio::{
 };
 use tracing_subscriber::util::SubscriberInitExt;
 use types::*;
+use url::Url;
 
 const LOG_TARGET: &str = "polkadot-staking-miner-monitor";
-const CRATE_NAME: &str = env!("CARGO_PKG_NAME");
 
 #[derive(Debug, Clone, Parser)]
 #[clap(version = env!("CARGO_PKG_VERSION"))]
 struct Opt {
+    /// The URL of the polkadot node to connect to.
     #[clap(long)]
-    url: Option<String>,
+    polkadot: Url,
+    /// This listen addr to listen on for a REST API to query the database.
     #[clap(long, default_value_t = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 9999)))]
     listen_addr: SocketAddr,
+    /// The URL of the PostgreSQL database to connect to.
+    /// The URL should be in the form of `postgres://user:password@host:port/dbname`.
     #[clap(long)]
-    db_path: Option<PathBuf>,
+    postgres: Url,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let Opt {
-        url,
+        polkadot,
         listen_addr,
-        db_path,
+        postgres,
     } = Opt::parse();
 
     tracing_subscriber::FmtSubscriber::builder()
@@ -48,26 +50,11 @@ async fn main() -> anyhow::Result<()> {
         .finish()
         .try_init()?;
 
-    let db_path = if let Some(path) = db_path {
-        directories::ProjectDirs::from_path(path)
-            .ok_or_else(|| anyhow::anyhow!("Failed open database"))?
-    } else {
-        directories::ProjectDirs::from("org", "paritytech", CRATE_NAME)
-            .ok_or_else(|| anyhow::anyhow!("Failed open database"))?
-    };
+    let client = Client::new(polkadot).await?;
 
-    let url = url.ok_or_else(|| anyhow::anyhow!("--url must be set"))?;
-    let client = Client::new(&url).await?;
+    tracing::info!(target: LOG_TARGET, "Connected to chain {}", client.chain_name());
 
-    let db = {
-        // Create the directories if it does not exist
-        std::fs::create_dir_all(db_path.data_dir())?;
-        let path = db_path
-            .data_dir()
-            .join(format!("{}.db", client.chain_name()));
-
-        db::Database::new(path).await?
-    };
+    let db = db::Database::new(postgres).await?;
 
     let db2 = db.clone();
     std::thread::spawn(move || {

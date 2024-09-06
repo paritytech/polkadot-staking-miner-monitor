@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use crate::db;
+use crate::db::{self, Slashed, Submission};
 use crate::runtime;
 use crate::runtime::election_provider_multi_phase::events::ElectionFinalized;
 

@@ -29,9 +29,9 @@ pub use subxt::config::Header as HeaderT;
 pub type ExtrinsicDetails = subxt::blocks::ExtrinsicDetails<subxt::PolkadotConfig, ChainClient>;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sp_npos_elections::ElectionScore;
 use std::str::FromStr;
 use subxt::{backend::rpc::reconnecting_rpc_client::ExponentialBackoff, utils::H256};
+use url::Url;
 
 pub const EPM_PALLET_NAME: &str = "ElectionProviderMultiPhase";
 
@@ -40,47 +40,6 @@ struct ActiveRound {
     round: u32,
     start_block: u64,
     last_block: u64,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Submission {
-    pub who: Address,
-    pub round: u32,
-    pub block: u32,
-    pub score: ElectionScore,
-    pub success: bool,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Winner {
-    pub who: Address,
-    pub round: u32,
-    pub block: u32,
-    pub score: ElectionScore,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Slashed {
-    pub who: Address,
-    pub round: u32,
-    pub block: u32,
-    pub amount: String,
-}
-
-impl Slashed {
-    pub fn new(
-        who: subxt::config::substrate::AccountId32,
-        round: u32,
-        block: u32,
-        amount: u128,
-    ) -> Self {
-        Self {
-            who: Address::from_bytes(who.0.as_ref()),
-            round,
-            block,
-            amount: amount.to_string(),
-        }
-    }
 }
 
 /// Represents the submissions in a round and should be cleared after each round.
@@ -155,7 +114,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn new(uri: &str) -> anyhow::Result<Self> {
+    pub async fn new(url: Url) -> anyhow::Result<Self> {
         let rpc = {
             let rpc = subxt::backend::rpc::reconnecting_rpc_client::Client::builder()
                 .max_request_size(u32::MAX)
@@ -165,7 +124,7 @@ impl Client {
                         .max_delay(std::time::Duration::from_secs(10)),
                 )
                 .request_timeout(std::time::Duration::from_secs(600))
-                .build(uri.to_string())
+                .build(url.as_str().into())
                 .await?;
             subxt::backend::rpc::RpcClient::new(rpc)
         };

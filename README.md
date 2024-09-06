@@ -1,7 +1,7 @@
 ## Polkadot staking miner monitor
 
 This is a simple tool that monitors each election in polkadot, kusama and westend 
-then stores the following data related in a SQLite database:
+then stores the following data related in a postgres database:
 - submissions: The list of all submissions in each election, this is regarded 
   as successful if the solution extrinsic is accepted by the chain. The solution may
   be rejected at the end of the election when it's fully verified. You need check `slashed`
@@ -35,7 +35,7 @@ and why full history is not supported.
 ### Usage
 
 ```bash
-$ cargo run --release -- --url wss://rpc.polkadot.io
+$ cargo run --release -- --polkadot wss://rpc.polkadot.io --postgres "postgresql://user:pwd@localhost/polkadot"
 ```
 
 Open another terminal and run the following commands to use the API:
