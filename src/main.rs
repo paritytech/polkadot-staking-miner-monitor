@@ -66,30 +66,28 @@ async fn main() -> anyhow::Result<()> {
         rt.block_on(async {
             use actix_web::{web, App, HttpServer};
 
+            let server = oasgen::Server::actix()
+                .route_json_spec("/docs/openapi.json")
+                .route_yaml_spec("/docs/openapi.yaml")
+                .swagger_ui("/docs/")
+                .get("/submissions", routes::all_submissions)
+                .get("/winners", routes::all_election_winners)
+                .get("/unsigned-winners", routes::all_unsigned_winners)
+                .get("/slashed", routes::all_slashed)
+                .get("/submissions/{n}", routes::most_recent_submissions)
+                .get("/winners/{n}", routes::most_recent_election_winners)
+                .get(
+                    "/unsigned-winners/{n}",
+                    routes::most_recent_unsigned_winners,
+                )
+                .get("/slashed/{n}", routes::most_recent_slashed)
+                .write_and_exit_if_env_var_set("./openapi.yaml")
+                .freeze();
+
             HttpServer::new(move || {
                 App::new()
                     .app_data(web::Data::new(db2.clone()))
-                    .route("/", web::get().to(routes::home))
-                    .route("/submissions", web::get().to(routes::all_submissions))
-                    .route("/winners", web::get().to(routes::all_election_winners))
-                    .route(
-                        "/unsigned-winners",
-                        web::get().to(routes::all_unsigned_winners),
-                    )
-                    .route("/slashed", web::get().to(routes::all_slashed))
-                    .route(
-                        "/submissions/{n}",
-                        web::get().to(routes::most_recent_submissions),
-                    )
-                    .route(
-                        "/winners/{n}",
-                        web::get().to(routes::most_recent_election_winners),
-                    )
-                    .route(
-                        "/unsigned-winners/{n}",
-                        web::get().to(routes::most_recent_unsigned_winners),
-                    )
-                    .route("/slashed/{n}", web::get().to(routes::most_recent_slashed))
+                    .service(server.clone().into_service())
             })
             .bind(listen_addr)?
             .run()
@@ -186,12 +184,12 @@ async fn main() -> anyhow::Result<()> {
             None => Address::unsigned(),
         };
 
-        db.insert_election_winner(Winner {
+        db.insert_election_winner(Winner::new(
             who,
             round,
-            block: block.number(),
-            score: election_finalized.score.0,
-        })
+            block.number(),
+            election_finalized.score.0,
+        ))
         .await?;
         state.clear();
     }

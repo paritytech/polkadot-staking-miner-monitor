@@ -3,10 +3,12 @@
 // see LICENSE for license details.
 
 use crate::{Address, LOG_TARGET};
+use oasgen::OaSchema;
 use serde::{Deserialize, Serialize};
 use sp_npos_elections::ElectionScore;
+use std::num::NonZeroUsize;
 use std::str::FromStr;
-use std::{num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 use tokio_postgres::row::Row;
 use tokio_postgres::{Client, NoTls};
 use url::Url;
@@ -19,128 +21,6 @@ pub enum Error {
     RowNotFound(&'static str, usize),
     #[error(transparent)]
     Database(#[from] tokio_postgres::Error),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Submission {
-    pub who: Address,
-    pub round: u32,
-    pub block: u32,
-    pub score: ElectionScore,
-    pub success: bool,
-}
-
-impl TryFrom<Row> for Submission {
-    type Error = Error;
-
-    fn try_from(row: Row) -> Result<Self, Self::Error> {
-        let who = {
-            let val: String = row
-                .try_get(1)
-                .map_err(|_| Error::RowNotFound("address", 1))?;
-            Address::from_str(&val).map_err(|e| Error::Parse(e.to_string()))?
-        };
-        let round = row.try_get(2).map_err(|_| Error::RowNotFound("round", 2))?;
-        let block = row.try_get(3).map_err(|_| Error::RowNotFound("block", 3))?;
-        let score = {
-            let score: Vec<u8> = row.try_get(4).map_err(|_| Error::RowNotFound("score", 3))?;
-            serde_json::from_slice(&score).map_err(|e| Error::Parse(e.to_string()))?
-        };
-        let success = row
-            .try_get(5)
-            .map_err(|_| Error::RowNotFound("success", 5))?;
-
-        Ok(Self {
-            who,
-            round,
-            block,
-            score,
-            success,
-        })
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Winner {
-    pub who: Address,
-    pub round: u32,
-    pub block: u32,
-    pub score: ElectionScore,
-}
-
-impl TryFrom<Row> for Winner {
-    type Error = Error;
-
-    fn try_from(row: Row) -> Result<Self, Self::Error> {
-        let who = {
-            let val: String = row
-                .try_get(1)
-                .map_err(|_| Error::RowNotFound("address", 1))?;
-            Address::from_str(&val).map_err(|e| Error::Parse(e.to_string()))?
-        };
-        let round = row.try_get(2).map_err(|_| Error::RowNotFound("round", 2))?;
-        let block = row.try_get(3).map_err(|_| Error::RowNotFound("block", 3))?;
-        let score = {
-            let score: Vec<u8> = row.try_get(4).map_err(|_| Error::RowNotFound("score", 4))?;
-            serde_json::from_slice(&score).map_err(|e| Error::Parse(e.to_string()))?
-        };
-
-        Ok(Self {
-            who,
-            round,
-            block,
-            score,
-        })
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Slashed {
-    pub who: Address,
-    pub round: u32,
-    pub block: u32,
-    pub amount: String,
-}
-
-impl TryFrom<Row> for Slashed {
-    type Error = Error;
-
-    fn try_from(row: Row) -> Result<Self, Self::Error> {
-        let who = {
-            let val: String = row
-                .try_get(1)
-                .map_err(|_| Error::RowNotFound("address", 1))?;
-            Address::from_str(&val).map_err(|e| Error::Parse(e.to_string()))?
-        };
-        let amount = row
-            .try_get(2)
-            .map_err(|_| Error::RowNotFound("amount", 2))?;
-        let round = row.try_get(3).map_err(|_| Error::RowNotFound("round", 3))?;
-        let block = row.try_get(4).map_err(|_| Error::RowNotFound("block", 4))?;
-
-        Ok(Self {
-            who,
-            amount,
-            round,
-            block,
-        })
-    }
-}
-
-impl Slashed {
-    pub fn new(
-        who: subxt::config::substrate::AccountId32,
-        round: u32,
-        block: u32,
-        amount: u128,
-    ) -> Self {
-        Self {
-            who: Address::from_bytes(who.0.as_ref()),
-            round,
-            block,
-            amount: amount.to_string(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -164,7 +44,7 @@ impl Database {
                 address TEXT,
                 round OID,
                 block OID,
-                score BYTEA,
+                score JSONB,
                 success BOOLEAN
             );
             CREATE TABLE IF NOT EXISTS election_winners (
@@ -172,7 +52,7 @@ impl Database {
                 address TEXT,
                 round OID,
                 block OID,
-                score BYTEA
+                score JSONB
             );
             CREATE TABLE IF NOT EXISTS slashed (
                 id SERIAL PRIMARY KEY,
@@ -197,7 +77,6 @@ impl Database {
         } = submission;
 
         let who = who.to_string();
-        let score = serde_json::to_vec(&score).map_err(|e| Error::Parse(e.to_string()))?;
         let stmt = self.0.prepare("INSERT INTO submissions (address, round, block, score, success) VALUES ($1, $2, $3, $4, $5)").await?;
         self.0
             .execute(&stmt, &[&who, &round, &block, &score, &success])
@@ -214,7 +93,6 @@ impl Database {
             score,
         } = winner;
 
-        let score = serde_json::to_vec(&score).map_err(|e| Error::Parse(e.to_string()))?;
         let who = who.to_string();
 
         let stmt = self
@@ -340,4 +218,143 @@ where
     }
 
     Ok(items)
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, OaSchema)]
+pub struct Submission {
+    who: Address,
+    round: u32,
+    block: u32,
+    score: serde_json::Value,
+    success: bool,
+}
+
+impl Submission {
+    pub fn new(who: Address, round: u32, block: u32, score: ElectionScore, success: bool) -> Self {
+        Self {
+            who,
+            round,
+            block,
+            score: serde_json::to_value(score).expect("ElectionScore serialize infallible; qed"),
+            success,
+        }
+    }
+}
+
+impl TryFrom<Row> for Submission {
+    type Error = Error;
+
+    fn try_from(row: Row) -> Result<Self, Self::Error> {
+        let who = {
+            let val: String = row
+                .try_get(1)
+                .map_err(|_| Error::RowNotFound("address", 1))?;
+            Address::from_str(&val).map_err(|e| Error::Parse(e.to_string()))?
+        };
+        let round = row.try_get(2).map_err(|_| Error::RowNotFound("round", 2))?;
+        let block = row.try_get(3).map_err(|_| Error::RowNotFound("block", 3))?;
+        let score = row.try_get(4).map_err(|_| Error::RowNotFound("score", 4))?;
+        let success = row
+            .try_get(5)
+            .map_err(|_| Error::RowNotFound("success", 5))?;
+
+        Ok(Self {
+            who,
+            round,
+            block,
+            score,
+            success,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, OaSchema)]
+pub struct Winner {
+    who: Address,
+    round: u32,
+    block: u32,
+    score: serde_json::Value,
+}
+
+impl Winner {
+    pub fn new(who: Address, round: u32, block: u32, score: ElectionScore) -> Self {
+        Self {
+            who,
+            round,
+            block,
+            score: serde_json::to_value(score).unwrap(),
+        }
+    }
+}
+
+impl TryFrom<Row> for Winner {
+    type Error = Error;
+
+    fn try_from(row: Row) -> Result<Self, Self::Error> {
+        let who = {
+            let val: String = row
+                .try_get(1)
+                .map_err(|_| Error::RowNotFound("address", 1))?;
+            Address::from_str(&val).map_err(|e| Error::Parse(e.to_string()))?
+        };
+        let round = row.try_get(2).map_err(|_| Error::RowNotFound("round", 2))?;
+        let block = row.try_get(3).map_err(|_| Error::RowNotFound("block", 3))?;
+        let score = row.try_get(4).map_err(|_| Error::RowNotFound("score", 4))?;
+
+        Ok(Self {
+            who,
+            round,
+            block,
+            score,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, OaSchema)]
+pub struct Slashed {
+    pub who: Address,
+    pub round: u32,
+    pub block: u32,
+    pub amount: String,
+}
+
+impl TryFrom<Row> for Slashed {
+    type Error = Error;
+
+    fn try_from(row: Row) -> Result<Self, Self::Error> {
+        let who = {
+            let val: String = row
+                .try_get(1)
+                .map_err(|_| Error::RowNotFound("address", 1))?;
+            Address::from_str(&val).map_err(|e| Error::Parse(e.to_string()))?
+        };
+        let amount = row
+            .try_get(2)
+            .map_err(|_| Error::RowNotFound("amount", 2))?;
+        let round = row.try_get(3).map_err(|_| Error::RowNotFound("round", 3))?;
+        let block = row.try_get(4).map_err(|_| Error::RowNotFound("block", 4))?;
+
+        Ok(Self {
+            who,
+            amount,
+            round,
+            block,
+        })
+    }
+}
+
+impl Slashed {
+    pub fn new(
+        who: subxt::config::substrate::AccountId32,
+        round: u32,
+        block: u32,
+        amount: u128,
+    ) -> Self {
+        Self {
+            who: Address::from_bytes(who.0.as_ref()),
+            round,
+            block,
+            amount: amount.to_string(),
+        }
+    }
 }

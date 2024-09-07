@@ -120,15 +120,7 @@ pub async fn read_block(
             if let subxt::events::Phase::ApplyExtrinsic(idx) = event.phase() {
                 if let Some((score, who, r)) = submissions.remove(&idx) {
                     tracing::trace!(target: LOG_TARGET, "Solution submitted who={who},score={:?}", score);
-                    let submission = Submission {
-                        who,
-                        round: r,
-                        score,
-                        block: block.number(),
-                        success: true,
-                    };
-
-                    db.insert_submission(submission).await?;
+                    db.insert_submission(Submission::new(who, r, block.number(), score, true)).await?;
                 }
             }
         }
@@ -160,15 +152,7 @@ pub async fn read_block(
 
     for (_, missed) in submissions.into_iter() {
         let (score, who, r) = missed;
-        let submission = Submission {
-            who,
-            round: r,
-            score,
-            block: block.number(),
-            success: false,
-        };
-
-        db.insert_submission(submission).await?;
+        db.insert_submission(Submission::new(who, r, block.number(), score, false)).await?;
     }
 
     Ok(res)

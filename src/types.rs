@@ -28,6 +28,7 @@ pub type EpmPhase = subxt::utils::Static<pallet_election_provider_multi_phase::P
 pub use subxt::config::Header as HeaderT;
 pub type ExtrinsicDetails = subxt::blocks::ExtrinsicDetails<subxt::PolkadotConfig, ChainClient>;
 
+use oasgen::OaSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;
 use subxt::{backend::rpc::reconnecting_rpc_client::ExponentialBackoff, utils::H256};
@@ -200,7 +201,7 @@ impl std::str::FromStr for Chain {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, OaSchema)]
 pub struct Address(String);
 
 impl std::fmt::Display for Address {

@@ -12,6 +12,9 @@ then stores the following data related in a postgres database:
 The tool is based on the subxt library and is written in Rust.
 
 ## Web APIs
+- `GET /docs/` - swagger UI
+- `GET /docs/openapi.json` - OpenAPI JSON schema
+- `GET /docs/openapi.yaml` - OpenAPI YAML schema
 - `GET /submissions` - Get all submissions from the database in JSON format.
 - `GET /submissions/{n}` - Get the `n` most recent submissions from the database in JSON format, n is a number.
 - `GET /winners` - Dump all winners from the database in JSON format.
