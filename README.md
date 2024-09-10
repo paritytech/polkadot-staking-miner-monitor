@@ -26,7 +26,7 @@ The tool is based on the subxt library and is written in Rust.
 
 ## Roadmap
 
-1. Add functionality to start syncing from a specific block instead of the latest. To get the full history of the contract.
+1. Add functionality to start syncing from a specific block instead of the latest. To get the full history of the chain.
 2. More sophisticated API to get more detailed information about the submissions and the winners.
 3. Support older metadata versions.
 
