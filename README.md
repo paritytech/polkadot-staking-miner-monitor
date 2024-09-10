@@ -57,7 +57,7 @@ $ curl "http://localhost:9999/submissions"
 
 #### Get the most recent submission
 ```bash
-$ curl "http://localhost:9999/submissions"
+$ curl "http://localhost:9999/submissions/1"
 [{"who":"unsigned","round":82,"block":1632,"score":{"minimal_stake":100000000000000,"sum_stake":100000000000000,"sum_stake_squared":10000000000000000000000000000},"success":true}]
 ```
 
