@@ -117,3 +117,8 @@ $ curl "http://localhost:9999/slashed/1"
     {"who":"0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48","round":85,"block":1691,"amount":"2000034179670"}
 ]
 ```
+
+### Database migrations
+
+This tool has a simple database with three tables: `submissions`, `election_winners` and `slashed` which is located in the `migrations` folder.
+To add a new migration, just create a new file with the following format: `V{version}__{description}.sql` and it will be automatically applied when the tool is started.

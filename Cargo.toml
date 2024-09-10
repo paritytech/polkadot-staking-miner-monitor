@@ -10,6 +10,7 @@ anyhow = "1.0.71"
 clap = { version = "4.5.17", features = ["derive"] }
 codec = { version = "3.0.0", package = "parity-scale-codec" }
 oasgen =  { version = "0.20.2", features = ["actix", "swagger-ui"] }
+refinery = { version = "0.8.14", features = ["tokio-postgres"] }
 scale-info = "2.11"
 serde = "1"
 serde_json = "1"
@@ -18,11 +19,11 @@ thiserror = "1.0.30"
 tokio = { version = "1.40", features = ["sync", "macros", "rt-multi-thread"] }
 tokio-postgres = { version = "0.7.11", features = ["with-serde_json-1"] }
 tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 url = "2.2.2"
 
 # Web API
-actix-web = "4.3.1"
+actix-web = "4.9.0"
 
 # polkadot-sdk
 pallet-election-provider-multi-phase = "36.0.0"

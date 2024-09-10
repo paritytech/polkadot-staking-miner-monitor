@@ -13,6 +13,8 @@ use tokio_postgres::row::Row;
 use tokio_postgres::{Client, NoTls};
 use url::Url;
 
+refinery::embed_migrations!("migrations");
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Failed to decode/encode: {0}")]
@@ -21,6 +23,8 @@ pub enum Error {
     RowNotFound(&'static str, usize),
     #[error(transparent)]
     Database(#[from] tokio_postgres::Error),
+    #[error(transparent)]
+    Migration(#[from] refinery::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -29,7 +33,7 @@ pub struct Database(Arc<Client>);
 impl Database {
     pub async fn new(url: Url) -> Result<Self, Error> {
         tracing::debug!(target: LOG_TARGET, "connecting to postgres db: {url}");
-        let (db, connection) = tokio_postgres::connect(url.as_str(), NoTls).await?;
+        let (mut db, connection) = tokio_postgres::connect(url.as_str(), NoTls).await?;
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
@@ -37,33 +41,7 @@ impl Database {
             }
         });
 
-        db.batch_execute(
-            "
-            CREATE TABLE IF NOT EXISTS submissions (
-                id SERIAL PRIMARY KEY,
-                address TEXT,
-                round OID,
-                block OID,
-                score JSONB,
-                success BOOLEAN
-            );
-            CREATE TABLE IF NOT EXISTS election_winners (
-                id SERIAL PRIMARY KEY,
-                address TEXT,
-                round OID,
-                block OID,
-                score JSONB
-            );
-            CREATE TABLE IF NOT EXISTS slashed (
-                id SERIAL PRIMARY KEY,
-                address TEXT,
-                amount TEXT,
-                round OID,
-                block OID
-            );",
-        )
-        .await?;
-
+        migrations::runner().run_async(&mut db).await?;
         Ok(Self(Arc::new(db)))
     }
 
