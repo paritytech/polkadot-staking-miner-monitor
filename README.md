@@ -109,7 +109,7 @@ $ curl "http://localhost:9999/slashed"
     {"who":"0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48","round":85,"block":1691,"amount":"2000034179670"}]
 ```
 
-#### Get all slashed solutions
+#### Get the most recent slashed
 
 ```bash
 $ curl "http://localhost:9999/slashed/1"
