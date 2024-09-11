@@ -260,7 +260,7 @@ impl Winner {
             who,
             round,
             block,
-            score: serde_json::to_value(score).expect("ElectionScore serialize infallible; qed),
+            score: serde_json::to_value(score).expect("ElectionScore serialize infallible; qed"),
         }
     }
 }

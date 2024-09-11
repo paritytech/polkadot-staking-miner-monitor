@@ -63,15 +63,17 @@ impl SubmissionsInRound {
     }
 
     pub fn new_block(&mut self, block: u64, round: u32) {
-        if self.inner.is_none() {
-            self.inner = Some(ActiveRound {
-                round,
-                start_block: block,
-                last_block: block,
-            });
-        }
-
-        let state = self.inner.as_mut().unwrap();
+        let state = match self.inner.as_mut() {
+            Some(state) => state,
+            None => {
+                self.inner = Some(ActiveRound {
+                    round,
+                    start_block: block,
+                    last_block: block,
+                });
+                return;
+            }
+        };
 
         // ElectionFinalized is emitted in the next round
         // so we need to wait for it to be emitted before
