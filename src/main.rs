@@ -91,7 +91,6 @@ async fn main() -> anyhow::Result<()> {
                     routes::most_recent_unsigned_winners,
                 )
                 .get("/slashed/{n}", routes::most_recent_slashed)
-                .write_and_exit_if_env_var_set("./openapi.yaml")
                 .freeze();
 
             HttpServer::new(move || {
