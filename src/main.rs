@@ -53,17 +53,24 @@ async fn main() -> anyhow::Result<()> {
     let client = Client::new(polkadot).await?;
 
     tracing::info!(target: LOG_TARGET, "Connected to chain {}", client.chain_name());
-
     let db = db::Database::new(postgres).await?;
 
+    let (stop_tx, mut stop_rx) = mpsc::channel(1);
+
     let db2 = db.clone();
+    let stop_tx2 = stop_tx.clone();
     std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread()
+        let rt = match tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
-            .unwrap();
-
-        rt.block_on(async {
+        {
+            Ok(rt) => rt,
+            Err(e) => {
+                _ = stop_tx2.blocking_send(format!("Failed to create HTTP server threadpool: {e}"));
+                return;
+            }
+        };
+        let rp = rt.block_on(async {
             use actix_web::{web, App, HttpServer};
 
             let server = oasgen::Server::actix()
@@ -92,8 +99,13 @@ async fn main() -> anyhow::Result<()> {
             .bind(listen_addr)?
             .run()
             .await
-        })
-        .unwrap();
+        });
+
+        let close = match rp {
+            Ok(()) => "HTTP Server closed".to_string(),
+            Err(e) => e.to_string(),
+        };
+        _ = stop_tx2.blocking_send(close);
     });
 
     let mut blocks = client
@@ -104,8 +116,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut state = SubmissionsInRound::new();
 
-    let (upgrade_tx, mut upgrade_rx) = mpsc::channel(1);
-    tokio::spawn(runtime_upgrade_task(client.chain_api().clone(), upgrade_tx));
+    tokio::spawn(runtime_upgrade_task(client.chain_api().clone(), stop_tx));
 
     let mut stream_int = signal(SignalKind::interrupt())?;
     let mut stream_term = signal(SignalKind::terminate())?;
@@ -118,7 +129,7 @@ async fn main() -> anyhow::Result<()> {
             _ = stream_term.recv() => {
                 return Ok(());
             }
-            msg = upgrade_rx.recv() => {
+            msg = stop_rx.recv() => {
                 let msg = msg.unwrap_or_else(|| "Unknown".to_string());
                 return Err(anyhow::anyhow!("Upgrade task failed: {msg}"));
             }
