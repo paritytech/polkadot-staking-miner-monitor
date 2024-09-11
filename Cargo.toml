@@ -1,35 +1,30 @@
 [package]
-name = "staking-miner-monitor"
+name = "polkadot-staking-miner-monitor"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-subxt = "0.29.0"
-tokio = { version = "1.28.2", features = ["full"] }
-codec = { package = "parity-scale-codec", version = "3.0.0" }
 anyhow = "1.0.71"
-clap = { version = "4.3.2", features = ["derive"] } 
-features = "0.10.0"
-derive = "1.0.0"
-tracing = "0.1.37"
-futures = "0.3.28"
-once_cell = "1.18"
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+clap = { version = "4.5.17", features = ["derive"] }
+codec = { version = "3.0.0", package = "parity-scale-codec" }
+oasgen =  { version = "0.20.2", features = ["actix", "swagger-ui"] }
+refinery = { version = "0.8.14", features = ["tokio-postgres"] }
+scale-info = "2.11"
 serde = "1"
-serde_json = "1.0.96"
-hex = "0.4.3"
+serde_json = "1"
+subxt = { version = "0.37.0", features = ["substrate-compat", "unstable-reconnecting-rpc-client"] }
+thiserror = "1.0.30"
+tokio = { version = "1.40", features = ["sync", "macros", "rt-multi-thread"] }
+tokio-postgres = { version = "0.7.11", features = ["with-serde_json-1"] }
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+url = "2.2.2"
 
+# Web API
+actix-web = "4.9.0"
 
-# prometheus
-prometheus = "0.13"
-hyper = { version = "0.14.25", features = ["server", "http1", "http2", "tcp"] }
-
-# substrate
-frame-election-provider-support = { git = "https://github.com/paritytech/substrate" }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate" }
-sp-npos-elections = { git = "https://github.com/paritytech/substrate" }
-
-# staking-miner
-staking-miner = { git = "https://github.com/paritytech/staking-miner-v2" }
+# polkadot-sdk
+pallet-election-provider-multi-phase = "36.0.0"
+sp-npos-elections = "34.0.0"

@@ -1,300 +1,217 @@
-mod prometheus;
+// Copyright 2024 Parity Technologies (UK) Ltd.
+// This file is dual-licensed as Apache-2.0 or GPL-3.0.
+// see LICENSE for license details.
 
-#[subxt::subxt(
-    runtime_metadata_path = "artifacts/metadata.scale",
-    derive_for_all_types = "Clone, Debug, Eq, PartialEq",
-    substitute_type(
-        path = "sp_npos_elections::ElectionScore",
-        with = "::subxt::utils::Static<::sp_npos_elections::ElectionScore>"
-    )
-)]
-pub mod runtime {}
+mod db;
+mod helpers;
+mod routes;
+mod types;
 
-use std::collections::{BTreeSet, HashMap};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use clap::Parser;
-use codec::Decode;
-use pallet_election_provider_multi_phase::RawSolution;
-use sp_npos_elections::ElectionScore;
-use staking_miner::opt::Chain;
-use subxt::config::Header as _;
-use subxt::events::Phase;
-use subxt::{OnlineClient, PolkadotConfig};
+use db::Winner;
+use helpers::{
+    get_phase, get_round, read_block, read_remaining_blocks_in_round, runtime_upgrade_task,
+    ReadBlock,
+};
+use tokio::{
+    signal::unix::{signal, SignalKind},
+    sync::mpsc,
+};
+use tracing_subscriber::{util::SubscriberInitExt, EnvFilter};
+use types::{Address, Client, ElectionRound, HeaderT};
+use url::Url;
 
-use runtime::election_provider_multi_phase::events::ElectionFinalized;
-use runtime::runtime_types::pallet_election_provider_multi_phase::Phase as EpmPhase;
-
-type SubxtClient = OnlineClient<PolkadotConfig>;
-type Hash = subxt::ext::sp_core::H256;
-type Submission = (ElectionScore, Option<Hash>, u32);
-type Header =
-    subxt::config::substrate::SubstrateHeader<u32, <PolkadotConfig as subxt::Config>::Hasher>;
-
-const EPM_PALLET_NAME: &str = "ElectionProviderMultiPhase";
+const LOG_TARGET: &str = "polkadot-staking-miner-monitor";
 
 #[derive(Debug, Clone, Parser)]
+#[clap(version = env!("CARGO_PKG_VERSION"))]
 struct Opt {
+    /// The URL of the polkadot node to connect to.
     #[clap(long)]
-    url: Option<String>,
-    #[clap(long, default_value_t = 9999)]
-    prometheus_port: u16,
-}
-
-#[derive(Debug)]
-struct SubmissionsInRound {
-    submissions: Vec<Submission>,
-    visited_blocks: BTreeSet<u32>,
-    block_len: usize,
-}
-
-impl SubmissionsInRound {
-    fn new(block_len: u32) -> Self {
-        Self {
-            submissions: Vec::new(),
-            visited_blocks: BTreeSet::new(),
-            block_len: block_len as usize,
-        }
-    }
-
-    fn clear(&mut self) {
-        self.submissions.clear();
-        self.visited_blocks.clear();
-    }
-
-    fn add_submission(&mut self, submission: Submission) {
-        self.submissions.push(submission);
-    }
+    polkadot: Url,
+    /// This listen addr to listen on for a REST API to query the database.
+    #[clap(long, default_value_t = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 9999)))]
+    listen_addr: SocketAddr,
+    /// The URL of the PostgreSQL database to connect to.
+    /// The URL should be in the form of `postgres://user:password@host:port/dbname`.
+    #[clap(long)]
+    postgres: Url,
+    /// Sets a custom logging filter. Syntax is `<target>=<level>`, e.g. -lpolkadot-staking-miner-monitor=debug.
+    ///
+    /// Log levels (least to most verbose) are error, warn, info, debug, and trace.
+    /// By default, all targets log `info`. The global log level can be set with `-l<level>`.
+    #[clap(long, short, default_value = "info")]
+    pub log: String,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let Opt {
-        url,
-        prometheus_port,
+        polkadot,
+        listen_addr,
+        postgres,
+        log,
     } = Opt::parse();
 
-    let url = url.ok_or_else(|| anyhow::anyhow!("--url must be set"))?;
-    let _prometheus_handle =
-        prometheus::run(prometheus_port).map_err(|e| anyhow::anyhow!("{e}"))?;
-    let _ = tracing_subscriber::fmt().try_init();
+    let filter = EnvFilter::from_default_env().add_directive(log.parse()?);
 
-    let api = loop {
-        match SubxtClient::from_url(&url).await {
-            Ok(api) => break api,
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .finish()
+        .try_init()?;
+
+    let client = Client::new(polkadot).await?;
+
+    tracing::info!(target: LOG_TARGET, "Connected to chain {}", client.chain_name());
+    let db = db::Database::new(postgres).await?;
+
+    let (stop_tx, mut stop_rx) = mpsc::channel(1);
+
+    let db2 = db.clone();
+    let stop_tx2 = stop_tx.clone();
+    std::thread::spawn(move || {
+        let rt = match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(rt) => rt,
             Err(e) => {
-                tracing::warn!("Could not connect to {url} {}, trying to re-connect", e);
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                _ = stop_tx2.blocking_send(format!("Failed to create HTTP server threadpool: {e}"));
+                return;
             }
-        }
-    };
+        };
+        let rp = rt.block_on(async {
+            use actix_web::{web, App, HttpServer};
 
-    let chain: Chain = api.runtime_version().try_into()?;
+            let server = oasgen::Server::actix()
+                .route_json_spec("/docs/openapi.json")
+                .route_yaml_spec("/docs/openapi.yaml")
+                .swagger_ui("/docs/")
+                .get("/submissions", routes::all_submissions)
+                .get("/winners", routes::all_election_winners)
+                .get("/unsigned-winners", routes::all_unsigned_winners)
+                .get("/slashed", routes::all_slashed)
+                .get("/submissions/{n}", routes::most_recent_submissions)
+                .get("/winners/{n}", routes::most_recent_election_winners)
+                .get(
+                    "/unsigned-winners/{n}",
+                    routes::most_recent_unsigned_winners,
+                )
+                .get("/slashed/{n}", routes::most_recent_slashed)
+                .freeze();
 
-    let mut blocks = api.rpc().subscribe_finalized_block_headers().await?;
+            HttpServer::new(move || {
+                App::new()
+                    .app_data(web::Data::new(db2.clone()))
+                    .service(server.clone().into_service())
+            })
+            .bind(listen_addr)?
+            .run()
+            .await
+        });
 
-    let sign_phase_len = api.constants().at(&runtime::constants()
-        .election_provider_multi_phase()
-        .signed_phase())?;
+        let close = match rp {
+            Ok(()) => "HTTP Server closed".to_string(),
+            Err(e) => e.to_string(),
+        };
+        _ = stop_tx2.blocking_send(close);
+    });
 
-    let unsign_phase_len = api.constants().at(&runtime::constants()
-        .election_provider_multi_phase()
-        .unsigned_phase())?;
+    let mut blocks = client
+        .chain_api()
+        .backend()
+        .stream_finalized_block_headers()
+        .await?;
 
-    let mut state = SubmissionsInRound::new(sign_phase_len + unsign_phase_len);
+    let mut state = ElectionRound::new();
+
+    tokio::spawn(runtime_upgrade_task(client.chain_api().clone(), stop_tx));
+
+    let mut stream_int = signal(SignalKind::interrupt())?;
+    let mut stream_term = signal(SignalKind::terminate())?;
 
     loop {
-        let block = match blocks.next().await {
-            Some(Err(e)) => return Err(e.into()),
-            Some(Ok(b)) => b,
-            None => {
-                blocks = api.rpc().subscribe_finalized_block_headers().await?;
-                continue;
+        let (block, block_ref) = tokio::select! {
+            _ = stream_int.recv() => {
+                return Ok(());
+            }
+            _ = stream_term.recv() => {
+                return Ok(());
+            }
+            msg = stop_rx.recv() => {
+                let msg = msg.unwrap_or_else(|| "Unknown".to_string());
+                return Err(anyhow::anyhow!("Upgrade task failed: {msg}"));
+            }
+            block = blocks.next() => {
+                match block {
+                    Some(Ok(block)) => {
+                        block
+                    }
+                    Some(Err(e)) => {
+                        if e.is_disconnected_will_reconnect() {
+                            continue;
+                        }
+                        return Err(e.into());
+                    }
+                    None => {
+                        blocks = client
+                            .chain_api()
+                            .backend()
+                            .stream_finalized_block_headers()
+                            .await?;
+                        continue;
+                    }
+                }
             }
         };
 
-        match get_phase(&api, block.hash()).await? {
-            EpmPhase::Off | EpmPhase::Emergency => {
-                continue;
-            }
-            EpmPhase::Signed | EpmPhase::Unsigned(_) => {
-                state.visited_blocks.insert(block.number());
-            }
-        }
+        let curr_phase = get_phase(&client, block_ref.hash()).await?.0;
+        let round = get_round(&client, block_ref.hash()).await?;
 
-        if let Some(winner) = read_block(&api, &block, &mut state, chain).await? {
-            tracing::info!("state: {:?}", state);
+        tracing::info!(
+            target: LOG_TARGET,
+            "block={}, phase={:?}, round={:?}",
+            block.number(),
+            curr_phase,
+            round
+        );
 
-            if state.visited_blocks.len() != state.block_len {
-                let n = (state.block_len - state.visited_blocks.len()) as u32;
-                let start_idx = state
-                    .visited_blocks
-                    .first()
-                    .copied()
-                    .map_or(block.number() - state.block_len as u32, |f| f - n);
-
-                for block_num in start_idx..start_idx + n {
-                    let old_block = get_header(&api, block_num).await?;
-                    read_block(&api, &old_block, &mut state, chain).await?;
-                }
-            }
-
-            tracing::info!("state: {:?}", state);
-            assert_eq!(state.visited_blocks.len(), state.block_len);
-
-            let (score, addr, r) = state
-                .submissions
-                .iter()
-                .max_by(|a, b| a.0.cmp(&b.0))
-                .cloned()
-                .expect("A winner must exist; qed");
-
-            assert_eq!(score, winner.score.0);
-            prometheus::election_winner(r, addr, score);
-
+        if !curr_phase.is_signed()
+            && !curr_phase.is_unsigned_open()
+            && !state.waiting_for_election_finalized()
+        {
             state.clear();
-        }
-    }
-}
-
-async fn get_phase(api: &SubxtClient, block_hash: Hash) -> anyhow::Result<EpmPhase<u32>> {
-    api.storage()
-        .at(block_hash)
-        .fetch_or_default(
-            &runtime::storage()
-                .election_provider_multi_phase()
-                .current_phase(),
-        )
-        .await
-        .map_err(Into::into)
-}
-
-async fn get_round(api: &SubxtClient, block_hash: Hash) -> anyhow::Result<u32> {
-    api.storage()
-        .at(block_hash)
-        .fetch_or_default(&runtime::storage().election_provider_multi_phase().round())
-        .await
-        .map_err(Into::into)
-}
-
-async fn read_block(
-    api: &SubxtClient,
-    block: &Header,
-    state: &mut SubmissionsInRound,
-    chain: Chain,
-) -> anyhow::Result<Option<ElectionFinalized>> {
-    let mut res = None;
-
-    tracing::info!("fetching block: {:?}", block.number());
-
-    match get_phase(&api, block.hash()).await? {
-        EpmPhase::Off | EpmPhase::Emergency => {
-            panic!("Unreachable; only called on valid blocks");
-        }
-        EpmPhase::Signed | EpmPhase::Unsigned(_) => {
-            state.visited_blocks.insert(block.number());
-        }
-    }
-
-    let round = get_round(&api, block.hash()).await?;
-    let block = api.blocks().at(block.hash()).await?;
-    let mut submissions = HashMap::new();
-
-    for ext in block.body().await?.extrinsics().iter() {
-        let ext = ext?;
-
-        let pallet_name = ext.pallet_name()?;
-        let call = ext.variant_name()?;
-
-        if pallet_name != EPM_PALLET_NAME {
             continue;
         }
 
-        tracing::info!("extrinsic={}_{}, idx={}", pallet_name, call, ext.index());
+        state.new_block(block.number() as u64, round);
 
-        if call == "submit" || call == "submit_unsigned" {
-            // TODO: use multiaddress here.
-            let addr = ext.address_bytes().map(|b| Hash::from_slice(&b[1..]));
-
-            let mut bytes = ext.field_bytes();
-
-            match chain {
-                Chain::Kusama => {
-                    let raw_solution: RawSolution<
-                        staking_miner::static_types::kusama::NposSolution24,
-                    > = Decode::decode(&mut bytes)?;
-
-                    tracing::info!("score: {:?}", raw_solution.score);
-                    submissions.insert(ext.index(), (raw_solution.score, addr, round));
-                }
-                Chain::Polkadot => {
-                    let raw_solution: RawSolution<
-                        staking_miner::static_types::polkadot::NposSolution16,
-                    > = Decode::decode(&mut bytes)?;
-
-                    tracing::info!("score: {:?}", raw_solution.score);
-                    submissions.insert(ext.index(), (raw_solution.score, addr, round));
-                }
-                Chain::Westend => {
-                    let raw_solution: RawSolution<
-                        staking_miner::static_types::westend::NposSolution16,
-                    > = Decode::decode(&mut bytes)?;
-
-                    tracing::info!("score: {:?}", raw_solution.score);
-                    submissions.insert(ext.index(), (raw_solution.score, addr, round));
-                }
+        let election_finalized = match read_block(&client, &block, &mut state, &db).await? {
+            ReadBlock::PhaseClosed => unreachable!("Phase already checked; qed"),
+            ReadBlock::ElectionFinalized(winner) => {
+                read_remaining_blocks_in_round(&client, &mut state, block.number() as u64, &db)
+                    .await?;
+                winner
             }
-        }
+            ReadBlock::Done => continue,
+        };
+
+        tracing::debug!(target: LOG_TARGET, "state {:?}", state);
+
+        // If the winner is rewarded it's signed otherwise it's unsigned.
+        let who = match state.complete() {
+            Some(who) => who,
+            None => Address::unsigned(),
+        };
+
+        db.insert_election_winner(Winner::new(
+            who,
+            round,
+            block.number(),
+            election_finalized.score.0,
+        ))
+        .await?;
     }
-
-    for event in block.events().await?.iter() {
-        let event = event?;
-
-        if event.pallet_name() == "ElectionProviderMultiPhase" {
-            tracing::info!("event={}_{}", event.pallet_name(), event.variant_name());
-        }
-
-        if let Some(phase) =
-            event.as_event::<runtime::election_provider_multi_phase::events::PhaseTransitioned>()?
-        {
-            tracing::info!("{:?}", phase);
-        }
-
-        if let Some(solution) =
-            event.as_event::<runtime::election_provider_multi_phase::events::SolutionStored>()?
-        {
-            if let Phase::ApplyExtrinsic(idx) = event.phase() {
-                if let Some((score, addr, r)) = submissions.remove(&idx) {
-                    tracing::trace!("{:?}", solution);
-                    prometheus::submission(round, addr, score);
-
-                    state.add_submission((score, addr, r));
-                }
-            }
-        }
-
-        if let Some(winner) =
-            event.as_event::<runtime::election_provider_multi_phase::events::ElectionFinalized>()?
-        {
-            res = Some(winner);
-        }
-    }
-
-    Ok(res)
-}
-
-async fn get_header(api: &SubxtClient, n: u32) -> anyhow::Result<Header> {
-    let block_hash = api
-        .rpc()
-        .block_hash(Some(n.into()))
-        .await?
-        .expect("Known block; qed");
-
-    let header = api
-        .rpc()
-        .header(Some(block_hash))
-        .await
-        .map_err(|e| anyhow::Error::from(e))?
-        .expect("Known block; qed");
-
-    Ok(header)
 }
