@@ -9,7 +9,7 @@ edition = "2021"
 anyhow = "1.0.71"
 clap = { version = "4.5.17", features = ["derive"] }
 codec = { version = "3.0.0", package = "parity-scale-codec" }
-oasgen =  { version = "0.20.2", features = ["actix", "swagger-ui"] }
+oasgen =  { version = "0.21.0", features = ["actix", "swagger-ui"] }
 refinery = { version = "0.8.14", features = ["tokio-postgres"] }
 scale-info = "2.11"
 serde = "1"
