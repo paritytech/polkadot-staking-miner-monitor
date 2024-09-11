@@ -137,7 +137,6 @@ jobs:
     needs: [check-fmt,
             check-clippy,
             check-docs,
-            check-cargo-hack,
             test,
             build]
     steps:
@@ -176,7 +175,6 @@ jobs:
     needs: [check-fmt,
             check-clippy,
             check-docs,
-            check-cargo-hack,
             test,
             build]
     steps:
