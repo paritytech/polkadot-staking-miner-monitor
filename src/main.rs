@@ -19,7 +19,7 @@ use tokio::{
     signal::unix::{signal, SignalKind},
     sync::mpsc,
 };
-use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{util::SubscriberInitExt, EnvFilter};
 use types::{Address, Client, ElectionRound, HeaderT};
 use url::Url;
 
@@ -38,6 +38,12 @@ struct Opt {
     /// The URL should be in the form of `postgres://user:password@host:port/dbname`.
     #[clap(long)]
     postgres: Url,
+    /// Sets a custom logging filter. Syntax is `<target>=<level>`, e.g. -lpolkadot-staking-miner-monitor=debug.
+    ///
+    /// Log levels (least to most verbose) are error, warn, info, debug, and trace.
+    /// By default, all targets log `info`. The global log level can be set with `-l<level>`.
+    #[clap(long, short, default_value = "info")]
+    pub log: String,
 }
 
 #[tokio::main]
@@ -46,10 +52,13 @@ async fn main() -> anyhow::Result<()> {
         polkadot,
         listen_addr,
         postgres,
+        log,
     } = Opt::parse();
 
-    tracing_subscriber::FmtSubscriber::builder()
-        .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env()?)
+    let filter = EnvFilter::from_default_env().add_directive(log.parse()?);
+
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
         .finish()
         .try_init()?;
 

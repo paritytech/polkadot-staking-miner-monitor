@@ -113,7 +113,7 @@ pub struct Client {
     /// Access to chain APIs such as storage, events etc.
     chain_api: ChainClient,
     /// The chain being used.
-    chain_name: Chain,
+    chain_name: String,
 }
 
 impl Client {
@@ -136,12 +136,11 @@ impl Client {
         let rpc = RpcClient::new(rpc);
 
         let runtime_version = rpc.state_get_runtime_version(None).await?;
-        let spec_name = match runtime_version.other.get("specName") {
+        let chain_name = match runtime_version.other.get("specName") {
             Some(serde_json::Value::String(n)) => n.clone(),
             Some(_) => return Err(anyhow::anyhow!("specName is not a string")),
             None => return Err(anyhow::anyhow!("specName not found")),
         };
-        let chain_name = Chain::from_str(&spec_name).map_err(|e| anyhow::anyhow!("{e}"))?;
 
         Ok(Self {
             rpc,
@@ -161,8 +160,8 @@ impl Client {
     }
 
     /// Get the chain name.
-    pub fn chain_name(&self) -> Chain {
-        self.chain_name
+    pub fn chain_name(&self) -> &str {
+        self.chain_name.as_str()
     }
 }
 
