@@ -11,13 +11,16 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use clap::Parser;
 use db::Winner;
-use helpers::*;
+use helpers::{
+    get_phase, get_round, read_block, read_remaining_blocks_in_round, runtime_upgrade_task,
+    ReadBlock,
+};
 use tokio::{
     signal::unix::{signal, SignalKind},
     sync::mpsc,
 };
 use tracing_subscriber::util::SubscriberInitExt;
-use types::*;
+use types::{Address, Client, ElectionRound, HeaderT};
 use url::Url;
 
 const LOG_TARGET: &str = "polkadot-staking-miner-monitor";
@@ -114,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
         .stream_finalized_block_headers()
         .await?;
 
-    let mut state = SubmissionsInRound::new();
+    let mut state = ElectionRound::new();
 
     tokio::spawn(runtime_upgrade_task(client.chain_api().clone(), stop_tx));
 
@@ -202,6 +205,5 @@ async fn main() -> anyhow::Result<()> {
             election_finalized.score.0,
         ))
         .await?;
-        state.clear();
     }
 }

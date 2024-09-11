@@ -43,14 +43,14 @@ struct ActiveRound {
     last_block: u64,
 }
 
-/// Represents the submissions in a round and should be cleared after each round.
+/// Represents the state of an election round which needs be reset after the election is finalized.
 #[derive(Debug)]
-pub struct SubmissionsInRound {
+pub struct ElectionRound {
     winner: Option<Address>,
     inner: Option<ActiveRound>,
 }
 
-impl SubmissionsInRound {
+impl ElectionRound {
     pub fn new() -> Self {
         Self {
             winner: None,

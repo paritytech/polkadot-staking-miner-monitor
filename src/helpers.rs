@@ -5,16 +5,18 @@
 use std::collections::HashMap;
 
 use crate::db::{self, Slashed, Submission};
-use crate::runtime;
-use crate::runtime::election_provider_multi_phase::events::ElectionFinalized;
-
-use crate::types::*;
+use crate::types::runtime;
+use crate::types::runtime::election_provider_multi_phase::events::ElectionFinalized;
+use crate::types::{
+    Address, ChainClient, Client, ElectionRound, EpmPhase, ExtrinsicDetails, Hash, Header, HeaderT,
+    EPM_PALLET_NAME,
+};
 use crate::LOG_TARGET;
+
 use codec::Decode;
 use scale_info::PortableRegistry;
 use scale_info::TypeInfo;
 use sp_npos_elections::ElectionScore;
-use subxt::config::Header as _;
 use subxt::dynamic::At;
 use subxt::ext::scale_encode::EncodeAsType;
 use tokio::sync::mpsc;
@@ -53,7 +55,7 @@ pub enum ReadBlock {
 pub async fn read_block(
     client: &Client,
     block: &Header,
-    state: &mut SubmissionsInRound,
+    state: &mut ElectionRound,
     db: &db::Database,
 ) -> anyhow::Result<ReadBlock> {
     let mut res = ReadBlock::Done;
@@ -222,7 +224,7 @@ pub async fn runtime_upgrade_task(client: ChainClient, tx: mpsc::Sender<String>)
 // Read the previous blocks in the current round.
 pub async fn read_remaining_blocks_in_round(
     client: &Client,
-    state: &mut SubmissionsInRound,
+    state: &mut ElectionRound,
     block_num: u64,
     db: &db::Database,
 ) -> anyhow::Result<()> {
