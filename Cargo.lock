@@ -3284,9 +3284,9 @@ dependencies = [
 
 [[package]]
 name = "oasgen"
-version = "0.20.2"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76a904f46c74774587db8e6f702245cf3e8ceaf090b4b13a5ddad1cc92ecaf59"
+checksum = "13df7908a3d0713aa8335450b6f3f1c7e60df4c4a7ac826fafe63f71df753295"
 dependencies = [
  "actix-web",
  "futures",
@@ -3308,9 +3308,9 @@ dependencies = [
 
 [[package]]
 name = "oasgen-core"
-version = "0.20.2"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4623e895b32830031e493548183c1b4a1da1b8fefc2626cf9f5346f8980a2a5a"
+checksum = "a51cc71092f2d88ae1916f3783a1bae74a99aa380ebadffe9985628ccccd5b12"
 dependencies = [
  "actix-web",
  "http 1.1.0",
@@ -3325,9 +3325,9 @@ dependencies = [
 
 [[package]]
 name = "oasgen-macro"
-version = "0.20.2"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0dfe9b266f83bfbb9db71633388f3850186d12545c0d375a6215df25560d504c"
+checksum = "f8880504b8ee3c0141923b69d51e748b9f0b353715b3481a60a6806a41fc891d"
 dependencies = [
  "oasgen-core",
  "proc-macro2",
@@ -4690,9 +4690,9 @@ dependencies = [
 
 [[package]]
 name = "serde_qs"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0431a35568651e363364210c91983c1da5eb29404d9f0928b67d4ebcfa7d330c"
+checksum = "cd34f36fe4c5ba9654417139a9b3a20d2e1de6012ee678ad14d240c22c78d8d6"
 dependencies = [
  "actix-web",
  "futures",
