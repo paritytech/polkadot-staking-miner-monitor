@@ -32,8 +32,8 @@ The tool is based on the subxt library and is written in Rust.
 
 ### Limitations
 
-This tool is based on the subxt and this means that it is limited to blocks with metadata v14
-and why full history is not supported.
+This tool is based on subxt and this means that it is limited to blocks with metadata v14
+or above. This is why full history is not supported.
 
 ### Usage
 
