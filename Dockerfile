@@ -32,7 +32,7 @@ COPY ./polkadot-staking-miner-monitor /usr/local/bin
 
 USER miner
 
-ENV URI="wss://rpc.polkadot.io"
+ENV POLKADOT_URL="wss://rpc.polkadot.io"
 ENV RUST_LOG="info"
 
 # check if the binary works in this container
