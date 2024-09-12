@@ -2,9 +2,11 @@
 // This file is dual-licensed as Apache-2.0 or GPL-3.0.
 // see LICENSE for license details.
 
+use crate::types::ElectionResult as InnerElectionResult;
 use crate::{Address, LOG_TARGET};
 use oasgen::OaSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sp_npos_elections::ElectionScore;
 use std::num::NonZeroUsize;
 use std::str::FromStr;
@@ -63,24 +65,23 @@ impl Database {
         Ok(())
     }
 
-    pub async fn insert_election_winner(&self, winner: Winner) -> Result<(), Error> {
-        let Winner {
+    pub async fn insert_election(&self, election: Election) -> Result<(), Error> {
+        let Election {
+            result,
             who,
             round,
             block,
             score,
-        } = winner;
-
-        let who = who.to_string();
+        } = election;
 
         let stmt = self
             .0
             .prepare(
-                "INSERT INTO election_winners (address, round, block, score) VALUES ($1, $2, $3, $4)",
+                "INSERT INTO elections (result, address, round, block, score) VALUES ($1, $2, $3, $4, $5)",
             )
             .await?;
         self.0
-            .execute(&stmt, &[&who, &round, &block, &score])
+            .execute(&stmt, &[&result, &who, &round, &block, &score])
             .await?;
 
         Ok(())
@@ -111,33 +112,8 @@ impl Database {
         collect_db_rows(self.0.query("SELECT * FROM submissions", &[]).await?)
     }
 
-    pub async fn get_all_election_winners(&self) -> Result<Vec<Winner>, Error> {
-        collect_db_rows(self.0.query("SELECT * FROM election_winners", &[]).await?)
-    }
-
-    pub async fn get_all_unsigned_winners(&self) -> Result<Vec<Winner>, Error> {
-        collect_db_rows(
-            self.0
-                .query(
-                    "SELECT * FROM election_winners WHERE address = 'unsigned'",
-                    &[],
-                )
-                .await?,
-        )
-    }
-
-    pub async fn get_most_recent_unsigned_winners(
-        &self,
-        n: NonZeroUsize,
-    ) -> Result<Vec<Winner>, Error> {
-        collect_db_rows(
-            self.0
-                .query(
-                    &format!("SELECT * FROM election_winners WHERE address = 'unsigned' ORDER BY round DESC LIMIT {n}"),
-                    &[],
-                )
-                .await?,
-        )
+    pub async fn get_all_elections(&self) -> Result<Vec<Election>, Error> {
+        collect_db_rows(self.0.query("SELECT * FROM elections", &[]).await?)
     }
 
     pub async fn get_most_recent_submissions(
@@ -154,14 +130,11 @@ impl Database {
         )
     }
 
-    pub async fn get_most_recent_election_winners(
-        &self,
-        n: NonZeroUsize,
-    ) -> Result<Vec<Winner>, Error> {
+    pub async fn get_most_recent_elections(&self, n: NonZeroUsize) -> Result<Vec<Election>, Error> {
         collect_db_rows(
             self.0
                 .query(
-                    &format!("SELECT * FROM election_winners ORDER BY round DESC LIMIT {n}"),
+                    &format!("SELECT * FROM elections ORDER BY round DESC LIMIT {n}"),
                     &[],
                 )
                 .await?,
@@ -247,16 +220,32 @@ impl TryFrom<Row> for Submission {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, OaSchema)]
-pub struct Winner {
-    who: Address,
+pub struct Election {
+    result: String,
+    who: serde_json::Value,
     round: u32,
     block: u32,
     score: serde_json::Value,
 }
 
-impl Winner {
-    pub fn new(who: Address, round: u32, block: u32, score: ElectionScore) -> Self {
+impl Election {
+    pub fn new(
+        election: InnerElectionResult,
+        round: u32,
+        block: u32,
+        score: ElectionScore,
+    ) -> Self {
+        let (result, who) = match election {
+            InnerElectionResult::Signed(addr) => (
+                "signed".to_string(),
+                serde_json::to_value(&addr).expect("AccountId serialize infallible; qed"),
+            ),
+            InnerElectionResult::Unsigned => ("unsigned".to_string(), json!(null)),
+            InnerElectionResult::Failed => ("election failed".to_string(), json!(null)),
+        };
+
         Self {
+            result,
             who,
             round,
             block,
@@ -265,21 +254,22 @@ impl Winner {
     }
 }
 
-impl TryFrom<Row> for Winner {
+impl TryFrom<Row> for Election {
     type Error = Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
-        let who = {
-            let val: String = row
-                .try_get(1)
-                .map_err(|_| Error::RowNotFound("address", 1))?;
-            Address::from_str(&val).map_err(|e| Error::Parse(e.to_string()))?
-        };
-        let round = row.try_get(2).map_err(|_| Error::RowNotFound("round", 2))?;
-        let block = row.try_get(3).map_err(|_| Error::RowNotFound("block", 3))?;
-        let score = row.try_get(4).map_err(|_| Error::RowNotFound("score", 4))?;
+        let result = row
+            .try_get(1)
+            .map_err(|_| Error::RowNotFound("result", 1))?;
+        let who: serde_json::Value = row
+            .try_get(2)
+            .map_err(|_| Error::RowNotFound("address", 2))?;
+        let round = row.try_get(3).map_err(|_| Error::RowNotFound("round", 3))?;
+        let block = row.try_get(4).map_err(|_| Error::RowNotFound("block", 4))?;
+        let score = row.try_get(5).map_err(|_| Error::RowNotFound("score", 5))?;
 
         Ok(Self {
+            result,
             who,
             round,
             block,

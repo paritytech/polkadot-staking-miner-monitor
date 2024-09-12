@@ -151,6 +151,13 @@ pub async fn read_block(
             ))
             .await?;
         }
+
+        if event
+            .as_event::<runtime::election_provider_multi_phase::events::ElectionFailed>()?
+            .is_some()
+        {
+            state.election_failed();
+        }
     }
 
     for (_, missed) in submissions.into_iter() {

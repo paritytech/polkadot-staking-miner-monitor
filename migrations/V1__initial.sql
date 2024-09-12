@@ -7,10 +7,11 @@ CREATE TABLE IF NOT EXISTS submissions (
     success BOOLEAN
 );
 
-CREATE TABLE IF NOT EXISTS election_winners 
+CREATE TABLE IF NOT EXISTS elections
 (
     id SERIAL PRIMARY KEY,
-    address TEXT,
+    result TEXT,
+    address JSONB,
     round OID,
     block OID,
     score JSONB
