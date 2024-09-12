@@ -43,17 +43,36 @@ struct ActiveRound {
     last_block: u64,
 }
 
+#[derive(Debug, Clone)]
+pub enum ElectionResult {
+    // Signed submission was granted as winner
+    Signed(Address),
+    // Election failed i.e, no winner was selected
+    Failed,
+    // No signed solution was submitted and the election was finalized offchain.
+    //
+    // There is no event for this and if the election is finalized without a reward
+    // then the election was finalized by offchain solution.
+    Unsigned,
+}
+
+impl Default for ElectionResult {
+    fn default() -> Self {
+        Self::Unsigned
+    }
+}
+
 /// Represents the state of an election round which needs be reset after the election is finalized.
 #[derive(Debug)]
 pub struct ElectionRound {
-    winner: Option<Address>,
+    result: ElectionResult,
     inner: Option<ActiveRound>,
 }
 
 impl ElectionRound {
     pub fn new() -> Self {
         Self {
-            winner: None,
+            result: ElectionResult::Unsigned,
             inner: None,
         }
     }
@@ -90,18 +109,23 @@ impl ElectionRound {
     }
 
     pub fn clear(&mut self) {
-        self.winner = None;
+        self.result = ElectionResult::default();
         self.inner = None;
     }
 
     pub fn set_winner(&mut self, winner: Address) {
-        assert!(self.winner.is_none());
-        self.winner = Some(winner);
+        assert!(matches!(self.result, ElectionResult::Unsigned));
+        self.result = ElectionResult::Signed(winner);
     }
 
-    pub fn complete(&mut self) -> Option<Address> {
+    pub fn election_failed(&mut self) {
+        assert!(matches!(self.result, ElectionResult::Unsigned));
+        self.result = ElectionResult::Failed;
+    }
+
+    pub fn complete(&mut self) -> ElectionResult {
         self.inner.take();
-        self.winner.take()
+        std::mem::take(&mut self.result)
     }
 }
 

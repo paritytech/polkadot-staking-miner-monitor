@@ -10,7 +10,7 @@ mod types;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use clap::Parser;
-use db::Winner;
+use db::Election;
 use helpers::{
     get_phase, get_round, read_block, read_remaining_blocks_in_round, runtime_upgrade_task,
     ReadBlock,
@@ -90,15 +90,10 @@ async fn main() -> anyhow::Result<()> {
                 .route_yaml_spec("/docs/openapi.yaml")
                 .swagger_ui("/docs/")
                 .get("/submissions", routes::all_submissions)
-                .get("/winners", routes::all_election_winners)
-                .get("/unsigned-winners", routes::all_unsigned_winners)
+                .get("/elections", routes::all_elections)
                 .get("/slashed", routes::all_slashed)
                 .get("/submissions/{n}", routes::most_recent_submissions)
-                .get("/winners/{n}", routes::most_recent_election_winners)
-                .get(
-                    "/unsigned-winners/{n}",
-                    routes::most_recent_unsigned_winners,
-                )
+                .get("/elections/{n}", routes::most_recent_elections)
                 .get("/slashed/{n}", routes::most_recent_slashed)
                 .freeze();
 
@@ -200,14 +195,10 @@ async fn main() -> anyhow::Result<()> {
 
         tracing::debug!(target: LOG_TARGET, "state {:?}", state);
 
-        // If the winner is rewarded it's signed otherwise it's unsigned.
-        let who = match state.complete() {
-            Some(who) => who,
-            None => Address::unsigned(),
-        };
+        let election_result = state.complete();
 
-        db.insert_election_winner(Winner::new(
-            who,
+        db.insert_election(Election::new(
+            election_result,
             round,
             block.number(),
             election_finalized.score.0,

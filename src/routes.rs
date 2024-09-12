@@ -2,7 +2,7 @@
 // This file is dual-licensed as Apache-2.0 or GPL-3.0.
 // see LICENSE for license details.
 
-use crate::db::{Database, Slashed, Submission, Winner};
+use crate::db::{Database, Election, Slashed, Submission};
 use actix_web::{web, web::Json, Error, Result};
 use oasgen::{oasgen, OaSchema};
 use std::num::NonZeroUsize;
@@ -16,20 +16,8 @@ pub async fn all_submissions(db: web::Data<Database>) -> Result<Json<Vec<Submiss
 }
 
 #[oasgen]
-pub async fn all_election_winners(db: web::Data<Database>) -> Result<Json<Vec<Winner>>, Error> {
-    let winners = db
-        .get_all_election_winners()
-        .await
-        .map_err(BoxError::from)?;
-    Ok(Json(winners))
-}
-
-#[oasgen]
-pub async fn all_unsigned_winners(db: web::Data<Database>) -> Result<Json<Vec<Winner>>, Error> {
-    let winners = db
-        .get_all_unsigned_winners()
-        .await
-        .map_err(BoxError::from)?;
+pub async fn all_elections(db: web::Data<Database>) -> Result<Json<Vec<Election>>, Error> {
+    let winners = db.get_all_elections().await.map_err(BoxError::from)?;
     Ok(Json(winners))
 }
 
@@ -53,26 +41,13 @@ pub async fn most_recent_submissions(
 }
 
 #[oasgen]
-pub async fn most_recent_election_winners(
+pub async fn most_recent_elections(
     db: web::Data<Database>,
     info: web::Path<usize>,
-) -> Result<Json<Vec<Winner>>, Error> {
+) -> Result<Json<Vec<Election>>, Error> {
     let n = into_non_zero_usize(info.into_inner())?;
     let winners = db
-        .get_most_recent_election_winners(n)
-        .await
-        .map_err(BoxError::from)?;
-    Ok(Json(winners))
-}
-
-#[oasgen]
-pub async fn most_recent_unsigned_winners(
-    db: web::Data<Database>,
-    info: web::Path<usize>,
-) -> Result<Json<Vec<Winner>>, Error> {
-    let n = into_non_zero_usize(info.into_inner())?;
-    let winners = db
-        .get_most_recent_unsigned_winners(n)
+        .get_most_recent_elections(n)
         .await
         .map_err(BoxError::from)?;
     Ok(Json(winners))
