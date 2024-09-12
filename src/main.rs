@@ -29,14 +29,14 @@ const LOG_TARGET: &str = "polkadot-staking-miner-monitor";
 #[clap(version = env!("CARGO_PKG_VERSION"))]
 struct Opt {
     /// The URL of the polkadot node to connect to.
-    #[clap(long)]
+    #[clap(long, env = "POLKADOT_URL")]
     polkadot: Url,
     /// This listen addr to listen on for a REST API to query the database.
-    #[clap(long, default_value_t = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 9999)))]
+    #[clap(long, default_value_t = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 9999)), env = "LISTEN_ADDR")]
     listen_addr: SocketAddr,
     /// The URL of the PostgreSQL database to connect to.
     /// The URL should be in the form of `postgres://user:password@host:port/dbname`.
-    #[clap(long)]
+    #[clap(long, env = "POSTGRES_URL")]
     postgres: Url,
     /// Sets a custom logging filter. Syntax is `<target>=<level>`, e.g. -lpolkadot-staking-miner-monitor=debug.
     ///
