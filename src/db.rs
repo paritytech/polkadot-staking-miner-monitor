@@ -68,7 +68,7 @@ impl Database {
     pub async fn insert_election(&self, election: Election) -> Result<(), Error> {
         let Election {
             result,
-            who,
+            winner,
             round,
             block,
             score,
@@ -81,7 +81,7 @@ impl Database {
             )
             .await?;
         self.0
-            .execute(&stmt, &[&result, &who, &round, &block, &score])
+            .execute(&stmt, &[&result, &winner, &round, &block, &score])
             .await?;
 
         Ok(())
@@ -112,8 +112,31 @@ impl Database {
         collect_db_rows(self.0.query("SELECT * FROM submissions", &[]).await?)
     }
 
+    pub async fn get_all_unsigned_elections(&self) -> Result<Vec<Election>, Error> {
+        collect_db_rows(
+            self.0
+                .query("SELECT * FROM elections where result = 'unsigned'", &[])
+                .await?,
+        )
+    }
+
+    pub async fn get_all_failed_elections(&self) -> Result<Vec<Election>, Error> {
+        collect_db_rows(
+            self.0
+                .query(
+                    "SELECT * FROM elections where result = 'election failed'",
+                    &[],
+                )
+                .await?,
+        )
+    }
+
     pub async fn get_all_elections(&self) -> Result<Vec<Election>, Error> {
         collect_db_rows(self.0.query("SELECT * FROM elections", &[]).await?)
+    }
+
+    pub async fn get_all_slashed(&self) -> Result<Vec<Slashed>, Error> {
+        collect_db_rows(self.0.query("SELECT * FROM slashed", &[]).await?)
     }
 
     pub async fn get_most_recent_submissions(
@@ -141,15 +164,43 @@ impl Database {
         )
     }
 
-    pub async fn get_all_slashed(&self) -> Result<Vec<Slashed>, Error> {
-        collect_db_rows(self.0.query("SELECT * FROM slashed", &[]).await?)
-    }
-
     pub async fn get_most_recent_slashed(&self, n: NonZeroUsize) -> Result<Vec<Slashed>, Error> {
         collect_db_rows(
             self.0
                 .query(
                     &format!("SELECT * FROM slashed ORDER BY round DESC LIMIT {n}"),
+                    &[],
+                )
+                .await?,
+        )
+    }
+
+    pub async fn get_most_recent_unsigned_elections(
+        &self,
+        n: NonZeroUsize,
+    ) -> Result<Vec<Election>, Error> {
+        collect_db_rows(
+            self.0
+                .query(
+                    &format!(
+                        "SELECT * FROM elections where result = 'unsigned' ORDER BY round DESC LIMIT {n}"
+                    ),
+                    &[],
+                )
+                .await?,
+        )
+    }
+
+    pub async fn get_most_recent_failed_elections(
+        &self,
+        n: NonZeroUsize,
+    ) -> Result<Vec<Election>, Error> {
+        collect_db_rows(
+            self.0
+                .query(
+                    &format!(
+                        "SELECT * FROM elections where result = 'election failed' ORDER BY round DESC LIMIT {n}"
+                    ),
                     &[],
                 )
                 .await?,
@@ -222,7 +273,7 @@ impl TryFrom<Row> for Submission {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, OaSchema)]
 pub struct Election {
     result: String,
-    who: serde_json::Value,
+    winner: serde_json::Value,
     round: u32,
     block: u32,
     score: serde_json::Value,
@@ -235,7 +286,7 @@ impl Election {
         block: u32,
         score: ElectionScore,
     ) -> Self {
-        let (result, who) = match election {
+        let (result, winner) = match election {
             InnerElectionResult::Signed(addr) => (
                 "signed".to_string(),
                 serde_json::to_value(&addr).expect("AccountId serialize infallible; qed"),
@@ -246,7 +297,7 @@ impl Election {
 
         Self {
             result,
-            who,
+            winner,
             round,
             block,
             score: serde_json::to_value(score).expect("ElectionScore serialize infallible; qed"),
@@ -261,7 +312,7 @@ impl TryFrom<Row> for Election {
         let result = row
             .try_get(1)
             .map_err(|_| Error::RowNotFound("result", 1))?;
-        let who: serde_json::Value = row
+        let winner: serde_json::Value = row
             .try_get(2)
             .map_err(|_| Error::RowNotFound("address", 2))?;
         let round = row.try_get(3).map_err(|_| Error::RowNotFound("round", 3))?;
@@ -270,7 +321,7 @@ impl TryFrom<Row> for Election {
 
         Ok(Self {
             result,
-            who,
+            winner,
             round,
             block,
             score,
