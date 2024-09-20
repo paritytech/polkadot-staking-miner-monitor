@@ -71,47 +71,31 @@ async fn main() -> anyhow::Result<()> {
 
     let db2 = db.clone();
     let stop_tx2 = stop_tx.clone();
-    std::thread::spawn(move || {
-        let rt = match tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-        {
-            Ok(rt) => rt,
-            Err(e) => {
-                _ = stop_tx2.blocking_send(format!("Failed to create HTTP server threadpool: {e}"));
-                return;
-            }
-        };
-        let rp = rt.block_on(async {
-            use actix_web::{web, App, HttpServer};
+    let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
 
-            let server = oasgen::Server::actix()
-                .route_json_spec("/docs/openapi.json")
-                .route_yaml_spec("/docs/openapi.yaml")
-                .swagger_ui("/docs/")
-                .get("/submissions", routes::all_submissions)
-                .get("/elections", routes::all_elections)
-                .get("/slashed", routes::all_slashed)
-                .get("/submissions/{n}", routes::most_recent_submissions)
-                .get("/elections/{n}", routes::most_recent_elections)
-                .get("/slashed/{n}", routes::most_recent_slashed)
-                .freeze();
+    tokio::spawn(async move {
+        let app = oasgen::Server::axum()
+            .route_json_spec("/docs/openapi.json")
+            .route_yaml_spec("/docs/openapi.yaml")
+            .swagger_ui("/docs/")
+            .get("/submissions", routes::all_submissions)
+            .get("/elections", routes::all_elections)
+            .get("/slashed", routes::all_slashed)
+            .get("/submissions/:n", routes::most_recent_submissions)
+            .get("/elections/:n", routes::most_recent_elections)
+            .get("/slashed/:n", routes::most_recent_slashed)
+            .freeze()
+            .into_router()
+            .with_state(db2);
 
-            HttpServer::new(move || {
-                App::new()
-                    .app_data(web::Data::new(db2.clone()))
-                    .service(server.clone().into_service())
+        if let Err(e) = axum::serve(listener, app)
+            .with_graceful_shutdown(async move {
+                stop_tx2.closed().await;
             })
-            .bind(listen_addr)?
-            .run()
             .await
-        });
-
-        let close = match rp {
-            Ok(()) => "HTTP Server closed".to_string(),
-            Err(e) => e.to_string(),
-        };
-        _ = stop_tx2.blocking_send(close);
+        {
+            tracing::error!(target: LOG_TARGET, "Server error: {:?}", e);
+        }
     });
 
     let mut blocks = client
