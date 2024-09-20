@@ -78,11 +78,18 @@ async fn main() -> anyhow::Result<()> {
             .route_json_spec("/docs/openapi.json")
             .route_yaml_spec("/docs/openapi.yaml")
             .swagger_ui("/docs/")
-            .get("/submissions", routes::all_submissions)
-            .get("/elections", routes::all_elections)
-            .get("/slashed", routes::all_slashed)
+            .get("/submissions/", routes::all_submissions)
+            .get("/elections/", routes::all_elections)
+            .get("/unsigned_elections/", routes::all_unsigned_elections)
+            .get("/failed_elections/", routes::all_failed_elections)
+            .get("/slashed/", routes::all_slashed)
             .get("/submissions/:n", routes::most_recent_submissions)
             .get("/elections/:n", routes::most_recent_elections)
+            .get(
+                "/unsigned_elections/:n",
+                routes::most_recent_unsigned_elections,
+            )
+            .get("/failed_elections/:n", routes::most_recent_failed_elections)
             .get("/slashed/:n", routes::most_recent_slashed)
             .freeze()
             .into_router()
@@ -179,7 +186,7 @@ async fn main() -> anyhow::Result<()> {
 
         tracing::debug!(target: LOG_TARGET, "state {:?}", state);
 
-        let election_result = state.complete();
+        let (election_result, round) = state.complete();
 
         db.insert_election(Election::new(
             election_result,

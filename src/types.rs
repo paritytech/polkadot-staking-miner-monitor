@@ -123,9 +123,12 @@ impl ElectionRound {
         self.result = ElectionResult::Failed;
     }
 
-    pub fn complete(&mut self) -> ElectionResult {
-        self.inner.take();
-        std::mem::take(&mut self.result)
+    pub fn complete(&mut self) -> (ElectionResult, u32) {
+        let state = self
+            .inner
+            .take()
+            .expect("At least one block must be processed in the ElectionRound; qed");
+        (std::mem::take(&mut self.result), state.round)
     }
 }
 
