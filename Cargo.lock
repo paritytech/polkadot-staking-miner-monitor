@@ -3067,9 +3067,9 @@ dependencies = [
 
 [[package]]
 name = "oasgen"
-version = "0.21.0"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13df7908a3d0713aa8335450b6f3f1c7e60df4c4a7ac826fafe63f71df753295"
+checksum = "ec65779ae1c81966c5ba82a72bcfc52e2926b6f19636bed1c07e0383a6569df8"
 dependencies = [
  "axum",
  "futures",
@@ -3091,9 +3091,9 @@ dependencies = [
 
 [[package]]
 name = "oasgen-core"
-version = "0.21.1"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a51cc71092f2d88ae1916f3783a1bae74a99aa380ebadffe9985628ccccd5b12"
+checksum = "997846b6e7ad93869478e6a9d7ea08dc7263ea787433b5f2670a1177f1e7c7ce"
 dependencies = [
  "axum",
  "http 1.1.0",
@@ -3108,9 +3108,9 @@ dependencies = [
 
 [[package]]
 name = "oasgen-macro"
-version = "0.21.0"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8880504b8ee3c0141923b69d51e748b9f0b353715b3481a60a6806a41fc891d"
+checksum = "8d84e40b52bfe230f96cdc5fc4ea55d6b7e2875955d06ab6c1a801aa8d64b91d"
 dependencies = [
  "oasgen-core",
  "proc-macro2",
