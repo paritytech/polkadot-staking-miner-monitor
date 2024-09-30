@@ -23,7 +23,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 url = "2.2.2"
 
 # Web API
-axum = { version = "0.7.6",default-features = false, features = ["json"] }
+axum = { version = "0.7.7",default-features = false, features = ["json"] }
 
 # polkadot-sdk
 pallet-election-provider-multi-phase = "36.0.0"
