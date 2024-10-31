@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.90"
+anyhow = "1.0.91"
 clap = { version = "4.5.20", features = ["derive", "env"] }
 codec = { version = "3.0.0", package = "parity-scale-codec" }
 oasgen =  { version = "0.22.0", features = ["axum", "swagger-ui"] }
@@ -16,7 +16,7 @@ serde = "1"
 serde_json = "1"
 subxt = { version = "0.37.0", features = ["substrate-compat", "unstable-reconnecting-rpc-client"] }
 thiserror = "1.0.65"
-tokio = { version = "1.40", features = ["sync", "macros", "rt-multi-thread", "signal"] }
+tokio = { version = "1.41", features = ["sync", "macros", "rt-multi-thread", "signal"] }
 tokio-postgres = { version = "0.7.12", features = ["with-serde_json-1"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
