@@ -15,7 +15,7 @@ scale-info = "2.11"
 serde = "1"
 serde_json = "1"
 subxt = { version = "0.37.0", features = ["substrate-compat", "unstable-reconnecting-rpc-client"] }
-thiserror = "1.0.64"
+thiserror = "1.0.65"
 tokio = { version = "1.41", features = ["sync", "macros", "rt-multi-thread", "signal"] }
 tokio-postgres = { version = "0.7.12", features = ["with-serde_json-1"] }
 tracing = "0.1.37"
