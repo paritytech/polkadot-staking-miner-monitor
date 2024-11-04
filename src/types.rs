@@ -7,24 +7,25 @@
     derive_for_all_types = "Clone, Debug, Eq, PartialEq",
     substitute_type(
         path = "sp_npos_elections::ElectionScore",
-        with = "::subxt::utils::Static<::sp_npos_elections::ElectionScore>"
+        with = "::subxt::utils::Static<polkadot_sdk::sp_npos_elections::ElectionScore>"
     ),
     substitute_type(
         path = "pallet_election_provider_multi_phase::Phase",
-        with = "::subxt::utils::Static<pallet_election_provider_multi_phase::Phase<u32>>"
+        with = "::subxt::utils::Static<polkadot_sdk::pallet_election_provider_multi_phase::Phase<u32>>"
     )
 )]
 pub mod runtime {}
 
 pub type RpcClient = subxt::backend::legacy::LegacyRpcMethods<subxt::PolkadotConfig>;
 pub type ChainClient = subxt::OnlineClient<subxt::PolkadotConfig>;
-pub type Hash = subxt::ext::sp_core::H256;
+pub type Hash = subxt::utils::H256;
 pub type Header = subxt::config::substrate::SubstrateHeader<
     u32,
     <subxt::PolkadotConfig as subxt::Config>::Hasher,
 >;
 
-pub type EpmPhase = subxt::utils::Static<pallet_election_provider_multi_phase::Phase<u32>>;
+pub type EpmPhase =
+    subxt::utils::Static<polkadot_sdk::pallet_election_provider_multi_phase::Phase<u32>>;
 pub use subxt::config::Header as HeaderT;
 pub type ExtrinsicDetails = subxt::blocks::ExtrinsicDetails<subxt::PolkadotConfig, ChainClient>;
 
@@ -146,7 +147,7 @@ pub struct Client {
 impl Client {
     pub async fn new(url: Url) -> anyhow::Result<Self> {
         let rpc = {
-            let rpc = subxt::backend::rpc::reconnecting_rpc_client::Client::builder()
+            let rpc = subxt::backend::rpc::reconnecting_rpc_client::RpcClient::builder()
                 .max_request_size(u32::MAX)
                 .max_response_size(u32::MAX)
                 .retry_policy(
@@ -154,7 +155,7 @@ impl Client {
                         .max_delay(std::time::Duration::from_secs(10)),
                 )
                 .request_timeout(std::time::Duration::from_secs(600))
-                .build(url.as_str().into())
+                .build(url.as_str())
                 .await?;
             subxt::backend::rpc::RpcClient::new(rpc)
         };

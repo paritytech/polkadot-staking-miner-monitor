@@ -14,9 +14,9 @@ use crate::types::{
 use crate::LOG_TARGET;
 
 use codec::Decode;
+use polkadot_sdk::sp_npos_elections::ElectionScore;
 use scale_info::PortableRegistry;
 use scale_info::TypeInfo;
-use sp_npos_elections::ElectionScore;
 use subxt::dynamic::At;
 use subxt::ext::scale_encode::EncodeAsType;
 use tokio::sync::mpsc;
@@ -79,8 +79,6 @@ pub async fn read_block(
     let extrinsics = block.extrinsics().await?;
 
     for ext in extrinsics.iter() {
-        let ext = ext?;
-
         let pallet_name = ext.pallet_name()?;
         let call = ext.variant_name()?;
 

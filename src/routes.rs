@@ -8,7 +8,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use oasgen::{oasgen, OaSchema};
+use oasgen::oasgen;
 use std::num::NonZeroUsize;
 
 type HttpError = (StatusCode, String);
