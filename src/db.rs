@@ -5,9 +5,9 @@
 use crate::types::ElectionResult as InnerElectionResult;
 use crate::{Address, LOG_TARGET};
 use oasgen::OaSchema;
+use polkadot_sdk::sp_npos_elections::ElectionScore;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sp_npos_elections::ElectionScore;
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::sync::Arc;
