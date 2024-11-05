@@ -16,7 +16,7 @@ The tool is based on the subxt library and is written in Rust.
 - `GET /docs/openapi.json` - OpenAPI JSON schema
 - `GET /docs/openapi.yaml` - OpenAPI YAML schema
 - `GET /submissions/` - Get all submissions from the database in JSON format.
-- `GET /submissions/successful` - Get all successful submissions from the database in JSON format.
+- `GET /submissions/success` - Get all successful submissions from the database in JSON format.
 - `GET /submissions/failed` - Get all failed submissions from the database in JSON format.
 - `GET /submissions/{n}` - Get the `n` most recent submissions from the database in JSON format, n is a number.
 - `GET /elections/` - Dump all elections from the database in JSON format.
