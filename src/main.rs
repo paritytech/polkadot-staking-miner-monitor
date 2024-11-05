@@ -78,19 +78,17 @@ async fn main() -> anyhow::Result<()> {
             .route_json_spec("/docs/openapi.json")
             .route_yaml_spec("/docs/openapi.yaml")
             .swagger_ui("/docs/")
-            .get("/submissions/", routes::all_submissions)
             .get("/elections/", routes::all_elections)
-            .get("/unsigned_elections/", routes::all_unsigned_elections)
-            .get("/failed_elections/", routes::all_failed_elections)
-            .get("/slashed/", routes::all_slashed)
-            .get("/submissions/:n", routes::most_recent_submissions)
+            .get("/elections/unsigned", routes::all_unsigned_elections)
+            .get("/elections/failed", routes::all_failed_elections)
+            .get("/elections/signed", routes::all_signed_elections)
             .get("/elections/:n", routes::most_recent_elections)
-            .get(
-                "/unsigned_elections/:n",
-                routes::most_recent_unsigned_elections,
-            )
-            .get("/failed_elections/:n", routes::most_recent_failed_elections)
+            .get("/slashed/", routes::all_slashed)
             .get("/slashed/:n", routes::most_recent_slashed)
+            .get("/submissions/", routes::all_submissions)
+            .get("/submissions/success", routes::all_success_submissions)
+            .get("/submissions/failed", routes::all_failed_submissions)
+            .get("/submissions/:n", routes::most_recent_submissions)
             .freeze()
             .into_router()
             .with_state(db2);

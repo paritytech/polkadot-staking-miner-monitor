@@ -112,10 +112,34 @@ impl Database {
         collect_db_rows(self.0.query("SELECT * FROM submissions", &[]).await?)
     }
 
+    pub async fn get_all_success_submissions(&self) -> Result<Vec<Submission>, Error> {
+        collect_db_rows(
+            self.0
+                .query("SELECT * FROM submissions where success = true", &[])
+                .await?,
+        )
+    }
+
+    pub async fn get_all_failed_submissions(&self) -> Result<Vec<Submission>, Error> {
+        collect_db_rows(
+            self.0
+                .query("SELECT * FROM submissions where success = false", &[])
+                .await?,
+        )
+    }
+
     pub async fn get_all_unsigned_elections(&self) -> Result<Vec<Election>, Error> {
         collect_db_rows(
             self.0
                 .query("SELECT * FROM elections where result = 'unsigned'", &[])
+                .await?,
+        )
+    }
+
+    pub async fn get_all_signed_elections(&self) -> Result<Vec<Election>, Error> {
+        collect_db_rows(
+            self.0
+                .query("SELECT * FROM elections where result = 'signed'", &[])
                 .await?,
         )
     }
@@ -169,38 +193,6 @@ impl Database {
             self.0
                 .query(
                     &format!("SELECT * FROM slashed ORDER BY round DESC LIMIT {n}"),
-                    &[],
-                )
-                .await?,
-        )
-    }
-
-    pub async fn get_most_recent_unsigned_elections(
-        &self,
-        n: NonZeroUsize,
-    ) -> Result<Vec<Election>, Error> {
-        collect_db_rows(
-            self.0
-                .query(
-                    &format!(
-                        "SELECT * FROM elections where result = 'unsigned' ORDER BY round DESC LIMIT {n}"
-                    ),
-                    &[],
-                )
-                .await?,
-        )
-    }
-
-    pub async fn get_most_recent_failed_elections(
-        &self,
-        n: NonZeroUsize,
-    ) -> Result<Vec<Election>, Error> {
-        collect_db_rows(
-            self.0
-                .query(
-                    &format!(
-                        "SELECT * FROM elections where result = 'election failed' ORDER BY round DESC LIMIT {n}"
-                    ),
                     &[],
                 )
                 .await?,
