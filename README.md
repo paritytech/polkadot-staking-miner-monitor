@@ -22,6 +22,7 @@ The tool is based on the subxt library and is written in Rust.
 - `GET /elections/` - Dump all elections from the database in JSON format.
 - `GET /elections/{n}` - Get the `n` most recent winners from the database in JSON format, n is a number.
 - `GET /elections/signed` - Dump all elections that were completed based on signed solutions.
+- `GET /elections/unsigned` - Dump all elections that were completed based on unsigned solutions.
 - `GET /elections/failed` - Dump all failed elections.
 - `GET /slashed/` - Get all slashed solutions from the database in JSON format.
 - `GET /slashed/{n}` - Get the `n` most recent slashed solutions from the database in JSON format, n is a number.
