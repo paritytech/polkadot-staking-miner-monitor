@@ -16,14 +16,15 @@ The tool is based on the subxt library and is written in Rust.
 - `GET /docs/openapi.json` - OpenAPI JSON schema
 - `GET /docs/openapi.yaml` - OpenAPI YAML schema
 - `GET /submissions/` - Get all submissions from the database in JSON format.
+- `GET /submissions/success` - Get all successful submissions from the database in JSON format.
+- `GET /submissions/failed` - Get all failed submissions from the database in JSON format.
 - `GET /submissions/{n}` - Get the `n` most recent submissions from the database in JSON format, n is a number.
 - `GET /elections/` - Dump all elections from the database in JSON format.
 - `GET /elections/{n}` - Get the `n` most recent winners from the database in JSON format, n is a number.
-- `GET /unsigned-elections/` - Dump all elections that were completed based on unsigned solutions.
-- `GET /unsigned-elections/{n}` - Get the `n` most recent elections that were completed based on unsigned solutons.
-- `GET /failed_elections/` - Get all failed elections.
-- `GET /failed_elections/` - Get the `n` most recent failed elections.
-- `GET /slashed` - Get all slashed solutions from the database in JSON format.
+- `GET /elections/signed` - Dump all elections that were completed based on signed solutions.
+- `GET /elections/unsigned` - Dump all elections that were completed based on unsigned solutions.
+- `GET /elections/failed` - Dump all failed elections.
+- `GET /slashed/` - Get all slashed solutions from the database in JSON format.
 - `GET /slashed/{n}` - Get the `n` most recent slashed solutions from the database in JSON format, n is a number.
 
 ## Roadmap

@@ -22,6 +22,28 @@ pub async fn all_submissions(
 }
 
 #[oasgen]
+pub async fn all_success_submissions(
+    State(db): State<Database>,
+) -> Result<Json<Vec<Submission>>, HttpError> {
+    let submissions = db
+        .get_all_success_submissions()
+        .await
+        .map_err(internal_error)?;
+    Ok(Json(submissions))
+}
+
+#[oasgen]
+pub async fn all_failed_submissions(
+    State(db): State<Database>,
+) -> Result<Json<Vec<Submission>>, HttpError> {
+    let submissions = db
+        .get_all_failed_submissions()
+        .await
+        .map_err(internal_error)?;
+    Ok(Json(submissions))
+}
+
+#[oasgen]
 pub async fn all_unsigned_elections(
     State(db): State<Database>,
 ) -> Result<Json<Vec<Election>>, HttpError> {
@@ -44,6 +66,17 @@ pub async fn all_failed_elections(
 ) -> Result<Json<Vec<Election>>, HttpError> {
     let elections = db
         .get_all_failed_elections()
+        .await
+        .map_err(internal_error)?;
+    Ok(Json(elections))
+}
+
+#[oasgen]
+pub async fn all_signed_elections(
+    State(db): State<Database>,
+) -> Result<Json<Vec<Election>>, HttpError> {
+    let elections = db
+        .get_all_signed_elections()
         .await
         .map_err(internal_error)?;
     Ok(Json(elections))
@@ -92,32 +125,6 @@ pub async fn most_recent_slashed(
         .await
         .map_err(internal_error)?;
     Ok(Json(slashed))
-}
-
-#[oasgen]
-pub async fn most_recent_failed_elections(
-    db: State<Database>,
-    Path(n): Path<usize>,
-) -> Result<Json<Vec<Election>>, HttpError> {
-    let n = into_non_zero_usize(n)?;
-    let elections = db
-        .get_most_recent_failed_elections(n)
-        .await
-        .map_err(internal_error)?;
-    Ok(Json(elections))
-}
-
-#[oasgen]
-pub async fn most_recent_unsigned_elections(
-    db: State<Database>,
-    Path(n): Path<usize>,
-) -> Result<Json<Vec<Election>>, HttpError> {
-    let n = into_non_zero_usize(n)?;
-    let elections = db
-        .get_most_recent_unsigned_elections(n)
-        .await
-        .map_err(internal_error)?;
-    Ok(Json(elections))
 }
 
 // Convert a usize into a NonZeroUsize, returning an error if the value is zero.
