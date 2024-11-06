@@ -25,6 +25,8 @@ url = "2.5.3"
 
 # Web API
 axum = { version = "0.7.7",default-features = false, features = ["json"] }
+metrics = { version = "0.24", default-features = false }
+metrics-exporter-prometheus = { version = "0.16", default-features = false }
 
 # polkadot-sdk
 polkadot-sdk = { version = "0.7", features = ["sp-npos-elections", "pallet-election-provider-multi-phase"] }

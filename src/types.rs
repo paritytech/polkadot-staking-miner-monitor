@@ -29,6 +29,7 @@ pub type EpmPhase =
 pub use subxt::config::Header as HeaderT;
 pub type ExtrinsicDetails = subxt::blocks::ExtrinsicDetails<subxt::PolkadotConfig, ChainClient>;
 
+use core::fmt;
 use oasgen::OaSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;
@@ -60,6 +61,16 @@ pub enum ElectionResult {
 impl Default for ElectionResult {
     fn default() -> Self {
         Self::Unsigned
+    }
+}
+
+impl std::fmt::Display for ElectionResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Signed(_) => f.write_str("signed"),
+            Self::Failed => f.write_str("failed"),
+            Self::Unsigned => f.write_str("unsigned"),
+        }
     }
 }
 
@@ -211,8 +222,8 @@ impl Chain {
     }
 }
 
-impl std::fmt::Display for Chain {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Chain {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
 }
