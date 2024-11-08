@@ -8,7 +8,7 @@ pub fn setup_metrics_recorder() -> anyhow::Result<PrometheusHandle> {
     let handle = PrometheusBuilder::new().install_recorder()?;
     describe_gauge!(election_status::TARGET, election_status::DESCRIPTION);
     metrics::gauge!(election_status::TARGET)
-        .set(election_status::ElectionStatus::Unitialized as u32);
+        .set(election_status::ElectionStatus::Uninitialized as u32);
     Ok(handle)
 }
 
@@ -19,7 +19,7 @@ pub(super) mod election_status {
     pub(super) const DESCRIPTION: &str = "The outcome of the most recent election represented as an integer. 0 if no election has occurred yet this is a placeholder value, 1 if the election succeeded based on an unsigned solution, 2 if the election succeeded based on a signed solution or 3 if the election failed.";
     #[repr(u32)]
     pub(super) enum ElectionStatus {
-        Unitialized = 0,
+        Uninitialized = 0,
         Unsigned = 1,
         Signed = 2,
         Failed = 3,
