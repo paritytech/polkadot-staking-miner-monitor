@@ -2,7 +2,10 @@
 // This file is dual-licensed as Apache-2.0 or GPL-3.0.
 // see LICENSE for license details.
 
-use crate::db::{Database, Election, Slashed, Submission};
+use crate::{
+    db::{Database, Election, Slashed, Submission},
+    prometheus::PrometheusHandle,
+};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -15,7 +18,7 @@ type HttpError = (StatusCode, String);
 
 #[oasgen]
 pub async fn all_submissions(
-    State(db): State<Database>,
+    State((db, _)): State<(Database, PrometheusHandle)>,
 ) -> Result<Json<Vec<Submission>>, HttpError> {
     let submissions = db.get_all_submissions().await.map_err(internal_error)?;
     Ok(Json(submissions))
@@ -23,7 +26,7 @@ pub async fn all_submissions(
 
 #[oasgen]
 pub async fn all_success_submissions(
-    State(db): State<Database>,
+    State((db, _)): State<(Database, PrometheusHandle)>,
 ) -> Result<Json<Vec<Submission>>, HttpError> {
     let submissions = db
         .get_all_success_submissions()
@@ -34,7 +37,7 @@ pub async fn all_success_submissions(
 
 #[oasgen]
 pub async fn all_failed_submissions(
-    State(db): State<Database>,
+    State((db, _)): State<(Database, PrometheusHandle)>,
 ) -> Result<Json<Vec<Submission>>, HttpError> {
     let submissions = db
         .get_all_failed_submissions()
@@ -45,7 +48,7 @@ pub async fn all_failed_submissions(
 
 #[oasgen]
 pub async fn all_unsigned_elections(
-    State(db): State<Database>,
+    State((db, _)): State<(Database, PrometheusHandle)>,
 ) -> Result<Json<Vec<Election>>, HttpError> {
     let elections = db
         .get_all_unsigned_elections()
@@ -55,14 +58,16 @@ pub async fn all_unsigned_elections(
 }
 
 #[oasgen]
-pub async fn all_elections(State(db): State<Database>) -> Result<Json<Vec<Election>>, HttpError> {
+pub async fn all_elections(
+    State((db, _)): State<(Database, PrometheusHandle)>,
+) -> Result<Json<Vec<Election>>, HttpError> {
     let winners = db.get_all_elections().await.map_err(internal_error)?;
     Ok(Json(winners))
 }
 
 #[oasgen]
 pub async fn all_failed_elections(
-    State(db): State<Database>,
+    State((db, _)): State<(Database, PrometheusHandle)>,
 ) -> Result<Json<Vec<Election>>, HttpError> {
     let elections = db
         .get_all_failed_elections()
@@ -73,7 +78,7 @@ pub async fn all_failed_elections(
 
 #[oasgen]
 pub async fn all_signed_elections(
-    State(db): State<Database>,
+    State((db, _)): State<(Database, PrometheusHandle)>,
 ) -> Result<Json<Vec<Election>>, HttpError> {
     let elections = db
         .get_all_signed_elections()
@@ -83,14 +88,16 @@ pub async fn all_signed_elections(
 }
 
 #[oasgen]
-pub async fn all_slashed(State(db): State<Database>) -> Result<Json<Vec<Slashed>>, HttpError> {
+pub async fn all_slashed(
+    State((db, _)): State<(Database, PrometheusHandle)>,
+) -> Result<Json<Vec<Slashed>>, HttpError> {
     let slashed = db.get_all_slashed().await.map_err(internal_error)?;
     Ok(Json(slashed))
 }
 
 #[oasgen]
 pub async fn most_recent_submissions(
-    State(db): State<Database>,
+    State((db, _)): State<(Database, PrometheusHandle)>,
     Path(n): Path<usize>,
 ) -> Result<Json<Vec<Submission>>, HttpError> {
     let n = into_non_zero_usize(n)?;
@@ -103,7 +110,7 @@ pub async fn most_recent_submissions(
 
 #[oasgen]
 pub async fn most_recent_elections(
-    State(db): State<Database>,
+    State((db, _)): State<(Database, PrometheusHandle)>,
     Path(n): Path<usize>,
 ) -> Result<Json<Vec<Election>>, HttpError> {
     let n = into_non_zero_usize(n)?;
@@ -116,7 +123,7 @@ pub async fn most_recent_elections(
 
 #[oasgen]
 pub async fn most_recent_slashed(
-    State(db): State<Database>,
+    State((db, _)): State<(Database, PrometheusHandle)>,
     Path(n): Path<usize>,
 ) -> Result<Json<Vec<Slashed>>, HttpError> {
     let n = into_non_zero_usize(n)?;
@@ -125,6 +132,11 @@ pub async fn most_recent_slashed(
         .await
         .map_err(internal_error)?;
     Ok(Json(slashed))
+}
+
+#[oasgen]
+pub async fn metrics(State((_, prometheus)): State<(Database, PrometheusHandle)>) -> String {
+    prometheus.render()
 }
 
 // Convert a usize into a NonZeroUsize, returning an error if the value is zero.

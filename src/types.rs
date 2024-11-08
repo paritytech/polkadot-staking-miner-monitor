@@ -63,6 +63,16 @@ impl Default for ElectionResult {
     }
 }
 
+impl std::fmt::Display for ElectionResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Signed(_) => f.write_str("signed"),
+            Self::Failed => f.write_str("failed"),
+            Self::Unsigned => f.write_str("unsigned"),
+        }
+    }
+}
+
 /// Represents the state of an election round which needs be reset after the election is finalized.
 #[derive(Debug)]
 pub struct ElectionRound {

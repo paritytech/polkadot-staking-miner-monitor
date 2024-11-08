@@ -4,6 +4,7 @@
 
 mod db;
 mod helpers;
+mod prometheus;
 mod routes;
 mod types;
 
@@ -63,15 +64,14 @@ async fn main() -> anyhow::Result<()> {
         .try_init()?;
 
     let client = Client::new(polkadot).await?;
+    let prometheus = prometheus::setup_metrics_recorder()?;
 
     tracing::info!(target: LOG_TARGET, "Connected to chain {}", client.chain_name());
     let db = db::Database::new(postgres).await?;
-
     let (stop_tx, mut stop_rx) = mpsc::channel(1);
-
-    let db2 = db.clone();
     let stop_tx2 = stop_tx.clone();
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
+    let state = (db.clone(), prometheus.clone());
 
     tokio::spawn(async move {
         let app = oasgen::Server::axum()
@@ -89,9 +89,10 @@ async fn main() -> anyhow::Result<()> {
             .get("/submissions/success", routes::all_success_submissions)
             .get("/submissions/failed", routes::all_failed_submissions)
             .get("/submissions/:n", routes::most_recent_submissions)
+            .get("/metrics", routes::metrics)
             .freeze()
             .into_router()
-            .with_state(db2);
+            .with_state(state);
 
         if let Err(e) = axum::serve(listener, app)
             .with_graceful_shutdown(async move {
@@ -183,9 +184,9 @@ async fn main() -> anyhow::Result<()> {
         };
 
         tracing::debug!(target: LOG_TARGET, "state {:?}", state);
-
         let (election_result, round) = state.complete();
 
+        prometheus::record_election(&election_result);
         db.insert_election(Election::new(
             election_result,
             round,
