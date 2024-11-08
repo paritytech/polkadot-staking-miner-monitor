@@ -26,6 +26,7 @@ The tool is based on the subxt library and is written in Rust.
 - `GET /elections/failed` - Dump all failed elections.
 - `GET /slashed/` - Get all slashed solutions from the database in JSON format.
 - `GET /slashed/{n}` - Get the `n` most recent slashed solutions from the database in JSON format, n is a number.
+- `GET /metrics` - Fetch prometheus metrics.
 
 ## Roadmap
 
