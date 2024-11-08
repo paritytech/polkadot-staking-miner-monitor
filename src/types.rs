@@ -29,7 +29,6 @@ pub type EpmPhase =
 pub use subxt::config::Header as HeaderT;
 pub type ExtrinsicDetails = subxt::blocks::ExtrinsicDetails<subxt::PolkadotConfig, ChainClient>;
 
-use core::fmt;
 use oasgen::OaSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;
@@ -222,8 +221,8 @@ impl Chain {
     }
 }
 
-impl fmt::Display for Chain {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Chain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
     }
 }
