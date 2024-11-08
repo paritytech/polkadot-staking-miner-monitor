@@ -16,7 +16,7 @@ pub(super) mod election_status {
     use crate::types::ElectionResult;
 
     pub(super) const TARGET: &str = "polkadot_election_status";
-    pub(super) const DESCRIPTION: &str = "The outcome of the most recent election represented as a integer. 0 if the election failed, 1 if the election succeeded based on unsigned solution, 2 if the election succeeded based on signed solution or 3 if no election has occurred yet";
+    pub(super) const DESCRIPTION: &str = "The outcome of the most recent election represented as an integer. 0 if no election has occurred yet this is a placeholder value, 1 if the election succeeded based on an unsigned solution, 2 if the election succeeded based on a signed solution or 3 if the election failed.";
     pub(super) enum ElectionStatus {
         Unitialized = 0,
         Unsigned = 1,
