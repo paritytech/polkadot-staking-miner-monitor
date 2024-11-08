@@ -26,12 +26,6 @@ use url::Url;
 
 const LOG_TARGET: &str = "polkadot-staking-miner-monitor";
 
-#[derive(Clone)]
-struct DbAndPrometheus {
-    db: db::Database,
-    prometheus: prometheus::PrometheusHandle,
-}
-
 #[derive(Debug, Clone, Parser)]
 #[clap(version = env!("CARGO_PKG_VERSION"))]
 struct Opt {
@@ -77,10 +71,7 @@ async fn main() -> anyhow::Result<()> {
     let (stop_tx, mut stop_rx) = mpsc::channel(1);
     let stop_tx2 = stop_tx.clone();
     let listener = tokio::net::TcpListener::bind(&listen_addr).await?;
-    let state = DbAndPrometheus {
-        db: db.clone(),
-        prometheus: prometheus.clone(),
-    };
+    let state = (db.clone(), prometheus.clone());
 
     tokio::spawn(async move {
         let app = oasgen::Server::axum()
