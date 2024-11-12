@@ -90,6 +90,7 @@ async fn main() -> anyhow::Result<()> {
             .get("/submissions/failed", routes::all_failed_submissions)
             .get("/submissions/:n", routes::most_recent_submissions)
             .get("/metrics", routes::metrics)
+            .get("/stats", routes::stats)
             .freeze()
             .into_router()
             .with_state(state);

@@ -44,7 +44,7 @@ struct ActiveRound {
     last_block: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ElectionResult {
     // Signed submission was granted as winner
     Signed(Address),

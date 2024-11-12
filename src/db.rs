@@ -72,6 +72,7 @@ impl Database {
             round,
             block,
             score,
+            ..
         } = election;
 
         let stmt = self
@@ -197,6 +198,56 @@ impl Database {
                 )
                 .await?,
         )
+    }
+
+    pub async fn get_stats(&self) -> Result<Stats, Error> {
+        let submissions = self
+            .collect_count("SELECT COUNT(*) FROM submissions")
+            .await?;
+
+        let submissions_failed = self
+            .collect_count("SELECT COUNT(*) FROM submissions WHERE success = false")
+            .await?;
+
+        let submissions_success = self
+            .collect_count("SELECT COUNT(*) FROM submissions WHERE success = true")
+            .await?;
+
+        let elections = self.collect_count("SELECT COUNT(*) FROM elections").await?;
+
+        let elections_failed = self
+            .collect_count("SELECT COUNT(*) FROM elections WHERE result = 'election failed'")
+            .await?;
+
+        let elections_signed = self
+            .collect_count("SELECT COUNT(*) FROM elections WHERE result = 'signed'")
+            .await?;
+
+        let elections_unsigned = self
+            .collect_count("SELECT COUNT(*) FROM elections WHERE result = 'unsigned'")
+            .await?;
+
+        let slashed = self.collect_count("SELECT COUNT(*) FROM slashed").await?;
+
+        Ok(Stats {
+            submissions: Submissions {
+                total: submissions,
+                failed: submissions_failed,
+                success: submissions_success,
+            },
+            elections: Elections {
+                total: elections,
+                failed: elections_failed,
+                signed: elections_signed,
+                unsigned: elections_unsigned,
+            },
+            slashed,
+        })
+    }
+
+    async fn collect_count(&self, statement: &str) -> Result<u64, Error> {
+        let row = self.0.query_one(statement, &[]).await?;
+        Ok(row.get::<_, i64>(0) as u64)
     }
 }
 
@@ -368,4 +419,26 @@ impl Slashed {
             amount: amount.to_string(),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, OaSchema)]
+pub struct Stats {
+    submissions: Submissions,
+    elections: Elections,
+    slashed: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, OaSchema)]
+pub struct Submissions {
+    total: u64,
+    failed: u64,
+    success: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, OaSchema)]
+pub struct Elections {
+    total: u64,
+    failed: u64,
+    signed: u64,
+    unsigned: u64,
 }
