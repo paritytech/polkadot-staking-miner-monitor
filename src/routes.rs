@@ -3,7 +3,7 @@
 // see LICENSE for license details.
 
 use crate::{
-    db::{Database, Election, Slashed, Submission},
+    db::{Database, Election, Slashed, Stats, Submission},
     prometheus::PrometheusHandle,
 };
 use axum::{
@@ -137,6 +137,14 @@ pub async fn most_recent_slashed(
 #[oasgen]
 pub async fn metrics(State((_, prometheus)): State<(Database, PrometheusHandle)>) -> String {
     prometheus.render()
+}
+
+#[oasgen]
+pub async fn stats(
+    State((db, _)): State<(Database, PrometheusHandle)>,
+) -> Result<Json<Stats>, HttpError> {
+    let stats = db.get_stats().await.map_err(internal_error)?;
+    Ok(Json(stats))
 }
 
 // Convert a usize into a NonZeroUsize, returning an error if the value is zero.

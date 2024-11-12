@@ -27,6 +27,7 @@ The tool is based on the subxt library and is written in Rust.
 - `GET /slashed/` - Get all slashed solutions from the database in JSON format.
 - `GET /slashed/{n}` - Get the `n` most recent slashed solutions from the database in JSON format, n is a number.
 - `GET /metrics` - Fetch prometheus metrics.
+- `GET /stats` - Fetch stats which include the total number of submissions, elections and slashed solutions.
 
 ## Roadmap
 
@@ -161,6 +162,26 @@ $ curl "http://localhost:9999/slashed/1"
 [
     {"who":"0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48","round":85,"block":1691,"amount":"2000034179670"}
 ]
+```
+
+#### Get stats
+
+```bash
+$ curl localhost:9999/stats | jq
+{
+  "submissions": {
+    "total": 188,
+    "failed": 1,
+    "success": 187
+  },
+  "elections": {
+    "total": 177,
+    "failed": 0,
+    "signed": 12,
+    "unsigned": 165
+  },
+  "slashed": 0
+}
 ```
 
 ### Database migrations
