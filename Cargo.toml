@@ -24,7 +24,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 url = "2.5.4"
 
 # Web API
-axum = { version = "0.7.7",default-features = false, features = ["json"] }
+axum = { version = "0.7.9",default-features = false, features = ["json"] }
 metrics = { version = "0.24", default-features = false }
 metrics-exporter-prometheus = { version = "0.16", default-features = false }
 
