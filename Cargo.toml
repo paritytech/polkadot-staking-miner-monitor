@@ -29,4 +29,4 @@ metrics = { version = "0.24", default-features = false }
 metrics-exporter-prometheus = { version = "0.16", default-features = false }
 
 # polkadot-sdk
-polkadot-sdk = { version = "0.7", features = ["sp-npos-elections", "pallet-election-provider-multi-phase"] }
+polkadot-sdk = { version = "0.12", features = ["sp-npos-elections", "pallet-election-provider-multi-phase"] }
