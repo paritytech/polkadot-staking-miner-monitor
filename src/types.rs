@@ -2,20 +2,6 @@
 // This file is dual-licensed as Apache-2.0 or GPL-3.0.
 // see LICENSE for license details.
 
-#[subxt::subxt(
-    runtime_metadata_path = "artifacts/metadata.scale",
-    derive_for_all_types = "Clone, Debug, Eq, PartialEq",
-    substitute_type(
-        path = "sp_npos_elections::ElectionScore",
-        with = "::subxt::utils::Static<polkadot_sdk::sp_npos_elections::ElectionScore>"
-    ),
-    substitute_type(
-        path = "pallet_election_provider_multi_phase::Phase",
-        with = "::subxt::utils::Static<polkadot_sdk::pallet_election_provider_multi_phase::Phase<u32>>"
-    )
-)]
-pub mod runtime {}
-
 pub type RpcClient = subxt::backend::legacy::LegacyRpcMethods<subxt::PolkadotConfig>;
 pub type ChainClient = subxt::OnlineClient<subxt::PolkadotConfig>;
 pub type Hash = subxt::utils::H256;
@@ -24,8 +10,7 @@ pub type Header = subxt::config::substrate::SubstrateHeader<
     <subxt::PolkadotConfig as subxt::Config>::Hasher,
 >;
 
-pub type EpmPhase =
-    subxt::utils::Static<polkadot_sdk::pallet_election_provider_multi_phase::Phase<u32>>;
+pub type BlockRef = subxt::blocks::BlockRef<Hash>;
 pub use subxt::config::Header as HeaderT;
 pub type ExtrinsicDetails = subxt::blocks::ExtrinsicDetails<subxt::PolkadotConfig, ChainClient>;
 
@@ -35,7 +20,15 @@ use std::str::FromStr;
 use subxt::{backend::rpc::reconnecting_rpc_client::ExponentialBackoff, utils::H256};
 use url::Url;
 
-pub const EPM_PALLET_NAME: &str = "ElectionProviderMultiPhase";
+/// Represent the result of reading a block.
+pub enum ReadBlock {
+    /// Election completed and the winner is known.
+    ElectionFinalized(polkadot_sdk::sp_npos_elections::ElectionScore),
+    /// Phase closed, no more submissions expected.
+    PhaseClosed,
+    /// No more blocks to read.
+    Done,
+}
 
 #[derive(Debug)]
 struct ActiveRound {
