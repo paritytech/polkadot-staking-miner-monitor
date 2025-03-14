@@ -2,20 +2,6 @@
 // This file is dual-licensed as Apache-2.0 or GPL-3.0.
 // see LICENSE for license details.
 
-#[subxt::subxt(
-    runtime_metadata_path = "artifacts/metadata.scale",
-    derive_for_all_types = "Clone, Debug, Eq, PartialEq",
-    substitute_type(
-        path = "sp_npos_elections::ElectionScore",
-        with = "::subxt::utils::Static<polkadot_sdk::sp_npos_elections::ElectionScore>"
-    ),
-    substitute_type(
-        path = "pallet_election_provider_multi_phase::Phase",
-        with = "::subxt::utils::Static<polkadot_sdk::pallet_election_provider_multi_phase::Phase<u32>>"
-    )
-)]
-pub mod runtime {}
-
 pub type RpcClient = subxt::backend::legacy::LegacyRpcMethods<subxt::PolkadotConfig>;
 pub type ChainClient = subxt::OnlineClient<subxt::PolkadotConfig>;
 pub type Hash = subxt::utils::H256;
@@ -23,11 +9,10 @@ pub type Header = subxt::config::substrate::SubstrateHeader<
     u32,
     <subxt::PolkadotConfig as subxt::Config>::Hasher,
 >;
-
-pub type EpmPhase =
-    subxt::utils::Static<polkadot_sdk::pallet_election_provider_multi_phase::Phase<u32>>;
-pub use subxt::config::Header as HeaderT;
+pub type BlockRef = subxt::blocks::BlockRef<Hash>;
 pub type ExtrinsicDetails = subxt::blocks::ExtrinsicDetails<subxt::PolkadotConfig, ChainClient>;
+
+pub use subxt::config::Header as HeaderT;
 
 use oasgen::OaSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -35,7 +20,15 @@ use std::str::FromStr;
 use subxt::{backend::rpc::reconnecting_rpc_client::ExponentialBackoff, utils::H256};
 use url::Url;
 
-pub const EPM_PALLET_NAME: &str = "ElectionProviderMultiPhase";
+/// Represent the result of reading a block.
+pub enum ReadBlock {
+    /// Election completed and the winner is known.
+    ElectionFinalized(sp_npos_elections::ElectionScore),
+    /// Phase closed, no more submissions expected.
+    PhaseClosed,
+    /// No more blocks to read.
+    Done,
+}
 
 #[derive(Debug)]
 struct ActiveRound {
@@ -200,43 +193,6 @@ impl Client {
     /// Get the chain name.
     pub fn chain_name(&self) -> &str {
         self.chain_name.as_str()
-    }
-}
-
-/// The chain being used.
-#[derive(Debug, Copy, Clone)]
-pub enum Chain {
-    Westend,
-    Kusama,
-    Polkadot,
-}
-
-impl Chain {
-    pub fn as_str(&self) -> &str {
-        match self {
-            Self::Polkadot => "polkadot",
-            Self::Kusama => "kusama",
-            Self::Westend => "westend",
-        }
-    }
-}
-
-impl std::fmt::Display for Chain {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl std::str::FromStr for Chain {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, String> {
-        match s {
-            "polkadot" => Ok(Self::Polkadot),
-            "kusama" => Ok(Self::Kusama),
-            "westend" => Ok(Self::Westend),
-            chain => Err(format!("Invalid chain: {}", chain)),
-        }
     }
 }
 

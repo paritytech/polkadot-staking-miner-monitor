@@ -4,6 +4,8 @@
 
 mod db;
 mod helpers;
+mod legacy;
+mod multi_block;
 mod prometheus;
 mod routes;
 mod types;
@@ -12,16 +14,13 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use clap::Parser;
 use db::Election;
-use helpers::{
-    get_phase, get_round, read_block, read_remaining_blocks_in_round, runtime_upgrade_task,
-    ReadBlock,
-};
+use helpers::runtime_upgrade_task;
 use tokio::{
     signal::unix::{signal, SignalKind},
     sync::mpsc,
 };
 use tracing_subscriber::{util::SubscriberInitExt, EnvFilter};
-use types::{Address, Client, ElectionRound, HeaderT};
+use types::{Address, Client, ElectionRound, HeaderT, ReadBlock};
 use url::Url;
 
 const LOG_TARGET: &str = "polkadot-staking-miner-monitor";
@@ -44,7 +43,11 @@ struct Opt {
     /// Log levels (least to most verbose) are error, warn, info, debug, and trace.
     /// By default, all targets log `info`. The global log level can be set with `-l<level>`.
     #[clap(long, short, default_value = "info")]
-    pub log: String,
+    log: String,
+
+    /// Experimental multi-block election.
+    #[clap(long, short, default_value_t = false)]
+    experimental_multi_block: bool,
 }
 
 #[tokio::main]
@@ -54,6 +57,7 @@ async fn main() -> anyhow::Result<()> {
         listen_addr,
         postgres,
         log,
+        experimental_multi_block,
     } = Opt::parse();
 
     let filter = EnvFilter::from_default_env().add_directive(log.parse()?);
@@ -82,13 +86,13 @@ async fn main() -> anyhow::Result<()> {
             .get("/elections/unsigned", routes::all_unsigned_elections)
             .get("/elections/failed", routes::all_failed_elections)
             .get("/elections/signed", routes::all_signed_elections)
-            .get("/elections/:n", routes::most_recent_elections)
+            .get("/elections/{n}", routes::most_recent_elections)
             .get("/slashed/", routes::all_slashed)
-            .get("/slashed/:n", routes::most_recent_slashed)
+            .get("/slashed/{n}", routes::most_recent_slashed)
             .get("/submissions/", routes::all_submissions)
             .get("/submissions/success", routes::all_success_submissions)
             .get("/submissions/failed", routes::all_failed_submissions)
-            .get("/submissions/:n", routes::most_recent_submissions)
+            .get("/submissions/{n}", routes::most_recent_submissions)
             .get("/metrics", routes::metrics)
             .get("/stats", routes::stats)
             .freeze()
@@ -153,47 +157,25 @@ async fn main() -> anyhow::Result<()> {
             }
         };
 
-        let curr_phase = get_phase(&client, block_ref.hash()).await?.0;
-        let round = get_round(&client, block_ref.hash()).await?;
+        let block_number = block.number();
 
-        tracing::info!(
-            target: LOG_TARGET,
-            "block={}, phase={:?}, round={:?}",
-            block.number(),
-            curr_phase,
-            round
-        );
-
-        if !curr_phase.is_signed()
-            && !curr_phase.is_unsigned_open()
-            && !state.waiting_for_election_finalized()
-        {
-            state.clear();
-            continue;
-        }
-
-        state.new_block(block.number() as u64, round);
-
-        let election_finalized = match read_block(&client, &block, &mut state, &db).await? {
-            ReadBlock::PhaseClosed => unreachable!("Phase already checked; qed"),
-            ReadBlock::ElectionFinalized(winner) => {
-                read_remaining_blocks_in_round(&client, &mut state, block.number() as u64, &db)
-                    .await?;
-                winner
-            }
-            ReadBlock::Done => continue,
+        let block_status = if experimental_multi_block {
+            multi_block::run(&client, &mut state, block_ref, block, &db).await?
+        } else {
+            legacy::run(&client, &mut state, block_ref, block, &db).await?
         };
 
-        tracing::debug!(target: LOG_TARGET, "state {:?}", state);
+        let score = match block_status {
+            ReadBlock::PhaseClosed | ReadBlock::Done => continue,
+            ReadBlock::ElectionFinalized(score) => score,
+        };
+
         let (election_result, round) = state.complete();
 
+        tracing::debug!(target: LOG_TARGET, "state {:?}", state);
+
         prometheus::record_election(&election_result);
-        db.insert_election(Election::new(
-            election_result,
-            round,
-            block.number(),
-            election_finalized.score.0,
-        ))
-        .await?;
+        db.insert_election(Election::new(election_result, round, block_number, score))
+            .await?;
     }
 }

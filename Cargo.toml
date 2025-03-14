@@ -29,4 +29,10 @@ metrics = { version = "0.24", default-features = false }
 metrics-exporter-prometheus = { version = "0.16.2", default-features = false }
 
 # polkadot-sdk
-polkadot-sdk = { version = "0.12.1", features = ["sp-npos-elections", "pallet-election-provider-multi-phase"] }
+sp-npos-elections = { git = "https://github.com/paritytech/polkadot-sdk", branch = "na-no-mermaid-docs" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/polkadot-sdk", branch = "na-no-mermaid-docs" }
+pallet-election-provider-multi-block = { git = "https://github.com/paritytech/polkadot-sdk", branch = "na-no-mermaid-docs" }
+
+#sp-npos-elections = { path = "/home/niklasad1/Github/polkadot-sdk/substrate/primitives/npos-elections" }
+#pallet-election-provider-multi-phase = { path = "/home/niklasad1/Github/polkadot-sdk/substrate/frame/election-provider-multi-phase" }
+#pallet-election-provider-multi-block = { path = "/home/niklasad1/Github/polkadot-sdk/substrate/frame/election-provider-multi-block" }
