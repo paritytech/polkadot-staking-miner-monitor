@@ -7,7 +7,7 @@ rust-version = "1.84"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.97"
+anyhow = "1.0.100"
 clap = { version = "4.5.32", features = ["derive", "env"] }
 codec = { version = "3.7.4", package = "parity-scale-codec" }
 oasgen =  { version = "0.25.0", features = ["axum", "swagger-ui"] }
